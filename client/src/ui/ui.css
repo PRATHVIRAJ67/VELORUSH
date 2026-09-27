@@ -395,12 +395,42 @@ body.mobile .btn { min-height: 44px; }
 body.mobile select, body.mobile input { min-height: 40px; font-size: 16px; }
 body.mobile .menu-btn { padding: 10px 18px; }
 body.mobile .menu-btn span { font-size: 22px; }
-body.mobile .mode-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 body.mobile .mode-card { padding: 12px; }
 body.mobile .mode-card p { font-size: 13px; }
-body.mobile .map-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-body.mobile .garage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-body.mobile .garage-preview { min-height: 0; height: 76vh; align-self: start; position: sticky; top: 0; }
+/* landscape phone: side-by-side layouts use the wide screen */
+@media (orientation: landscape) {
+  body.mobile .mode-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  body.mobile .map-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body.mobile .garage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  body.mobile .garage-preview { min-height: 0; height: 76vh; align-self: start; position: sticky; top: 0; }
+}
+/* portrait phone: one column, compact cards, bike preview pinned above the options */
+@media (orientation: portrait) {
+  body.mobile .menu { background: rgba(6, 10, 20, 0.8); padding: calc(3vh + env(safe-area-inset-top)) 16px calc(3vh + var(--safe-b)); }
+  body.mobile .screen-title { font-size: 30px; margin-bottom: 14px; }
+  body.mobile .mode-cards { grid-template-columns: 1fr; gap: 8px; }
+  body.mobile .mode-card { display: grid; grid-template-columns: 38px 1fr; column-gap: 12px; align-items: center; padding: 10px 14px; }
+  body.mobile .mode-card .mc-icon { grid-row: span 2; font-size: 26px; text-align: center; }
+  body.mobile .mode-card h3 { margin: 0; font-size: 19px; }
+  body.mobile .mode-card p { grid-column: 2; }
+  body.mobile #play-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 16px 0; }
+  body.mobile #play-options label { flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; min-width: 0; }
+  body.mobile #play-options select { width: 100%; }
+  body.mobile .map-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  body.mobile .mc-body { padding: 7px 10px 9px; }
+  body.mobile .mc-body h3 { font-size: 16px; line-height: 1.15; }
+  body.mobile .mc-loc, body.mobile .mc-style { font-size: 12px; }
+  body.mobile .mc-stats { font-size: 13px; }
+  body.mobile .garage { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  body.mobile .garage-preview { min-height: 0; height: 30vh; position: sticky; top: calc(-3vh - env(safe-area-inset-top)); z-index: 2; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); }
+  body.mobile .garage-side .panel { padding: 14px; }
+  body.mobile .bike-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.mobile .bike-item b { font-size: 15px; }
+  body.mobile .bike-item small { font-size: 12px; }
+  body.mobile .bike-stats .stat { grid-template-columns: 84px 1fr; }
+  body.mobile .btn-row { position: sticky; bottom: calc(-3vh - var(--safe-b)); z-index: 2; margin: 16px -16px calc(-3vh - var(--safe-b)); padding: 12px 16px calc(12px + var(--safe-b)); background: linear-gradient(transparent, rgba(6, 10, 20, 0.96) 30%); }
+  body.mobile .btn-row .btn { flex: 1; }
+}
 @media (max-height: 520px) {
   body.mobile .menu { padding: 3vh 4vw calc(3vh + var(--safe-b)); }
   body.mobile .screen-title { font-size: 26px; margin-bottom: 10px; }
