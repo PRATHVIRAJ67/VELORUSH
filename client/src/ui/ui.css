@@ -195,6 +195,10 @@ input[type='checkbox'] { width: 22px; height: 22px; accent-color: var(--accent);
 .keys { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
 .keys td { padding: 5px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .keys td:first-child { color: #ffc14d; white-space: nowrap; width: 38%; }
+/* settings: touch-button list replaces the keyboard list when touch controls are on */
+.keys.touch-keys { display: none; }
+body.touch-on .keys { display: none; }
+body.touch-on .keys.touch-keys { display: table; }
 
 /* ---------------- HUD ---------------- */
 #hud { font-family: var(--body); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55); }

@@ -218,6 +218,8 @@ export class App {
   togglePause(force) {
     const s = this.session;
     if (!s || s.phase === 'results') return;
+    // Esc inside in-race settings goes back to the pause menu instead of resuming behind it
+    if (this.ui.closeRaceSettings()) return;
     const on = force ?? !(s.paused || this._pauseOverlay);
     if (s.canPause) {
       if (on) s.pause();

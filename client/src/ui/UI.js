@@ -100,6 +100,15 @@ export class UI {
     this.updateTouchVisibility();
   }
 
+  /** Settings opened from the pause menu → back to the pause menu. Returns false if not open. */
+  closeRaceSettings() {
+    if (this.settingsReturn !== 'pause' || !$('menu-settings').classList.contains('show')) return false;
+    this.hideMenus();
+    this.showHud();
+    this.showPause(true);
+    return true;
+  }
+
   showPause(on) {
     $('pause').classList.toggle('show', on);
     $('btn-restart').style.display = this.app.session?.canPause ? '' : 'none';
@@ -482,11 +491,8 @@ export class UI {
     for (const id of ['set-quality', 'set-speedfx', 'set-fps', 'set-cam', 'set-shake', 'set-assist', 'set-touch']) $(id).addEventListener('change', () => this._readSettings());
     for (const id of ['set-master', 'set-sfx', 'set-music']) $(id).addEventListener('input', () => this._readSettings());
     click('btn-settings-back', () => {
-      if (this.settingsReturn === 'pause') {
-        this.hideMenus();
-        this.showHud();
-        this.showPause(true);
-      } else this.showMenu('main');
+      if (this.settingsReturn === 'pause') this.closeRaceSettings();
+      else this.showMenu('main');
     });
     // pause
     click('btn-pause', () => app.togglePause());
@@ -506,6 +512,10 @@ export class UI {
     click('btn-pause-settings', () => {
       this.settingsReturn = 'pause';
       $('pause').classList.remove('show');
+      // race HUD + touch buttons would draw over the settings; Back → showHud() restores them
+      $('hud').classList.remove('show');
+      document.body.classList.remove('racing');
+      this.updateTouchVisibility();
       this._fillSettings();
       for (const m of MENUS) $(m).classList.toggle('show', m === 'menu-settings');
     });
