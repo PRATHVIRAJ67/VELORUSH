@@ -1,0 +1,5 @@
+node_modules/
+client/dist/
+*.log
+track.svg
+.DS_Store

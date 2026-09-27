@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>Velo Rush</title>
+    <!-- critical styles: the first paint is already the dark loader (no flash of unstyled HTML) -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b1220; color: #f3f6fb; overflow: hidden; }
+      /* zero specificity: the real stylesheet always wins once it has loaded */
+      :where(.screen, .touch) { display: none; }
+      #loading.show { display: block; position: fixed; inset: 0; }
+    </style>
+    <link rel="stylesheet" href="/src/ui/ui.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- LOADING -->
+      <section id="loading" class="screen show">
+        <div class="logo big">VELO<span>RUSH</span></div>
+        <div class="loading-bar"><div id="loading-fill"></div></div>
+        <div id="loading-text">Warming up the legs…</div>
+      </section>
+
+      <div id="ui">
+        <!-- MAIN MENU -->
+        <section id="menu-main" class="screen menu">
+          <div class="menu-left">
+            <div class="logo">VELO<span>RUSH</span></div>
+            <div class="tagline">Arcade cycling · Mountain Grand Prix</div>
+            <nav class="menu-list">
+              <button class="menu-btn primary" data-go="play"><span>Play</span><small>Quick race · AI race · Time trial</small></button>
+              <button class="menu-btn" data-go="mp"><span>Multiplayer</span><small>Race friends with a room code</small></button>
+              <button class="menu-btn" data-go="garage"><span>Garage</span><small>Bikes, colours, outfits</small></button>
+              <button class="menu-btn" data-go="settings"><span>Settings</span><small>Graphics, audio, controls</small></button>
+            </nav>
+          </div>
+          <div class="profile-card">
+            <div class="pc-name" id="pc-name">Rider</div>
+            <div class="pc-level">LEVEL <b id="pc-level">1</b></div>
+            <div class="xpbar"><div id="pc-xp"></div></div>
+            <div class="pc-stats" id="pc-stats"></div>
+          </div>
+          <div class="menu-footer">W/↑ pedal · S/↓ brake · A D steer · Shift sprint · Space boost · R reset · C camera · Esc pause</div>
+        </section>
+
+        <!-- PLAY (single player) -->
+        <section id="menu-play" class="screen menu">
+          <h1 class="screen-title">Choose a race</h1>
+          <div class="mode-cards">
+            <button class="mode-card sel" data-mode="quick">
+              <div class="mc-icon">⚡</div><h3>Quick Race</h3><p>One lap sprint against five riders.</p>
+            </button>
+            <button class="mode-card" data-mode="ai">
+              <div class="mc-icon">🏆</div><h3>AI Race</h3><p>Full grand prix vs a pack of tuned AI rivals.</p>
+            </button>
+            <button class="mode-card" data-mode="timetrial">
+              <div class="mc-icon">⏱</div><h3>Time Trial</h3><p>Just you, the clock and your ghost.</p>
+            </button>
+          </div>
+          <div class="options-row" id="play-options">
+            <label>Laps <select id="opt-laps"><option>1</option><option>2</option><option>3</option></select></label>
+            <label class="ai-only">Opponents <select id="opt-ai"><option>3</option><option>5</option><option>7</option></select></label>
+            <label>Weather
+              <select id="opt-weather"><option value="">Map default</option><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="fog">Fog</option><option value="rain">Rain</option><option value="random">Random</option></select>
+            </label>
+            <label class="ai-only">Difficulty
+              <select id="opt-skill"><option value="easy">Rookie</option><option value="medium">Pro</option><option value="hard">Elite</option><option value="elite">Legend</option></select>
+            </label>
+          </div>
+          <h2 class="sub-title">Choose a map</h2>
+          <div class="map-cards" id="map-cards"></div>
+          <div class="tc-best" id="tc-best"></div>
+          <div class="btn-row">
+            <button class="btn ghost" data-go="main">Back</button>
+            <button class="btn primary" id="btn-start-race">Race!</button>
+          </div>
+        </section>
+
+        <!-- MULTIPLAYER -->
+        <section id="menu-mp" class="screen menu">
+          <h1 class="screen-title">Multiplayer</h1>
+          <div class="net-status" id="net-status"><i></i><span>Offline</span></div>
+          <div class="mp-grid">
+            <div class="panel">
+              <h2>Your name</h2>
+              <input id="mp-name" maxlength="16" placeholder="Rider name" />
+              <h2>Create room</h2>
+              <div class="options-row compact">
+                <label>Laps <select id="mp-laps"><option>1</option><option selected>2</option><option>3</option></select></label>
+                <label>Bots <select id="mp-bots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option></select></label>
+                <label>Bot skill <select id="mp-skill"><option value="easy">Rookie</option><option value="medium" selected>Pro</option><option value="hard">Elite</option></select></label>
+              </div>
+              <button class="btn primary wide" id="btn-create">Create Room</button>
+            </div>
+            <div class="panel">
+              <h2>Join room</h2>
+              <input id="mp-code" maxlength="5" placeholder="CODE" class="code-input" autocomplete="off" />
+              <button class="btn primary wide" id="btn-join">Join Room</button>
+              <p class="hint">Ask the host for their 5-letter room code. Open a second browser window to test locally.</p>
+              <div class="server-url"><label>Server <input id="mp-server" /></label></div>
+            </div>
+          </div>
+          <div class="btn-row"><button class="btn ghost" data-go="main">Back</button></div>
+        </section>
+
+        <!-- LOBBY -->
+        <section id="menu-lobby" class="screen menu">
+          <h1 class="screen-title">Race lobby</h1>
+          <div class="lobby-code">
+            <span>ROOM CODE</span>
+            <b id="lobby-code">-----</b>
+            <button class="btn small" id="btn-copy-code">Copy</button>
+          </div>
+          <div class="lobby-grid">
+            <div class="panel">
+              <h2>Riders <span id="lobby-count"></span></h2>
+              <ul class="player-list" id="lobby-players"></ul>
+            </div>
+            <div class="panel">
+              <h2>Race settings</h2>
+              <div class="options-row compact column">
+                <label>Laps <select id="lobby-laps"><option>1</option><option>2</option><option>3</option></select></label>
+                <label>Bots <select id="lobby-bots"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+                <label>Map <select id="lobby-track"></select></label>
+                <label>Weather <select id="lobby-weather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="fog">Fog</option><option value="rain">Rain</option><option value="random">Random</option></select></label>
+                <label>Bot skill <select id="lobby-skill"><option value="easy">Rookie</option><option value="medium">Pro</option><option value="hard">Elite</option><option value="elite">Legend</option></select></label>
+              </div>
+              <div class="lobby-map" id="lobby-map"></div>
+              <p class="hint" id="lobby-hint"></p>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost" id="btn-leave">Leave</button>
+            <button class="btn" id="btn-ready">Ready</button>
+            <button class="btn primary" id="btn-host-start">Start Race</button>
+          </div>
+        </section>
+
+        <!-- GARAGE -->
+        <section id="menu-garage" class="screen menu">
+          <h1 class="screen-title">Garage</h1>
+          <div class="garage">
+            <div class="garage-preview" id="garage-preview"></div>
+            <div class="garage-side">
+              <div class="panel">
+                <h2>Bicycle</h2>
+                <div class="bike-list" id="bike-list"></div>
+                <div class="bike-stats" id="bike-stats"></div>
+              </div>
+              <div class="panel">
+                <h2>Frame colour</h2><div class="swatches" id="sw-frame"></div>
+                <h2>Jersey colour</h2><div class="swatches" id="sw-jersey"></div>
+                <h2>Accent / helmet</h2><div class="swatches" id="sw-accent"></div>
+                <h2>Outfit</h2><div class="chips" id="outfit-list"></div>
+              </div>
+            </div>
+          </div>
+          <div class="btn-row"><button class="btn primary" data-go="main">Done</button></div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="menu-settings" class="screen menu">
+          <h1 class="screen-title">Settings</h1>
+          <div class="settings-grid">
+            <div class="panel">
+              <h2>Graphics</h2>
+              <label class="row">Quality
+                <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+              <label class="row">Speed effects <input type="checkbox" id="set-speedfx" /></label>
+              <label class="row">Show FPS <input type="checkbox" id="set-fps" /></label>
+              <h2>Camera</h2>
+              <label class="row">Distance
+                <select id="set-cam"><option value="0">Close</option><option value="1">Normal</option><option value="2">Far</option></select></label>
+              <label class="row">Camera shake <input type="checkbox" id="set-shake" /></label>
+            </div>
+            <div class="panel">
+              <h2>Audio</h2>
+              <label class="row">Master <input type="range" id="set-master" min="0" max="1" step="0.05" /></label>
+              <label class="row">Effects <input type="range" id="set-sfx" min="0" max="1" step="0.05" /></label>
+              <label class="row">Music <input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
+              <h2>Controls</h2>
+              <label class="row">Steering assist <input type="checkbox" id="set-assist" /></label>
+              <label class="row">Touch controls
+                <select id="set-touch"><option value="auto">Auto</option><option value="on">On</option><option value="off">Off</option></select></label>
+              <table class="keys">
+                <tr><td>W / ↑</td><td>Pedal</td></tr>
+                <tr><td>S / ↓</td><td>Brake</td></tr>
+                <tr><td>A D / ← →</td><td>Steer</td></tr>
+                <tr><td>Shift</td><td>Sprint (hold, uses stamina)</td></tr>
+                <tr><td>Space</td><td>Burst boost</td></tr>
+                <tr><td>R</td><td>Reset bike</td></tr>
+                <tr><td>C</td><td>Camera distance</td></tr>
+                <tr><td>Esc / P</td><td>Pause</td></tr>
+                <tr><td>Gamepad</td><td>RT pedal · LT brake · A sprint · X boost</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="btn-row"><button class="btn primary" id="btn-settings-back">Back</button></div>
+        </section>
+
+        <!-- HUD -->
+        <section id="hud" class="screen">
+          <div class="hud-top-left">
+            <div class="hud-pos"><b id="hud-pos">1</b><sup id="hud-pos-suf">st</sup><span id="hud-pos-of">/8</span></div>
+            <ol class="hud-standings" id="hud-standings"></ol>
+          </div>
+          <div class="hud-top-center">
+            <div class="hud-timer" id="hud-timer">0:00.00</div>
+            <div class="hud-lap"><span id="hud-lap">LAP 1/2</span> · <span id="hud-cp">CP 0/6</span></div>
+          </div>
+          <div class="hud-minimap"><canvas id="minimap" width="220" height="220"></canvas></div>
+          <div class="hud-center-msg" id="hud-msg"></div>
+          <div class="hud-sub-msg" id="hud-sub"></div>
+          <div class="hud-warning" id="hud-warning"></div>
+          <div class="hud-draft" id="hud-draft">SLIPSTREAM</div>
+          <div class="hud-bottom">
+            <div class="hud-dist"><span id="hud-dist">0.0 km</span><small>to finish</small><em id="hud-grade">0%</em></div>
+            <div class="speedo">
+              <svg viewBox="0 0 200 120">
+                <path class="speedo-bg" d="M20 110 A80 80 0 0 1 180 110" />
+                <path class="speedo-fill" id="speedo-fill" d="M20 110 A80 80 0 0 1 180 110" />
+              </svg>
+              <div class="speedo-val"><b id="hud-speed">0</b><small>KM/H</small></div>
+            </div>
+            <div class="hud-bars">
+              <div class="bar-label">STAMINA</div>
+              <div class="bar stamina"><div id="hud-stamina"></div></div>
+              <div class="bar-label">SPRINT <span id="hud-boost-state">READY</span></div>
+              <div class="bar sprint"><div id="hud-sprint"></div></div>
+            </div>
+          </div>
+          <div class="fps" id="fps"></div>
+          <button class="pause-btn" id="btn-pause" aria-label="Pause">❚❚</button>
+        </section>
+
+        <!-- TOUCH CONTROLS -->
+        <div id="touch" class="touch">
+          <div class="t-util">
+            <button class="t-btn util" data-t="camera" aria-label="Camera distance">CAM</button>
+            <button class="t-btn util" data-t="reset" aria-label="Reset bike">RESET</button>
+          </div>
+          <div class="t-left">
+            <button class="t-btn" data-t="left">◀</button>
+            <button class="t-btn" data-t="right">▶</button>
+          </div>
+          <div class="t-right">
+            <button class="t-btn small" data-t="boost">BOOST</button>
+            <button class="t-btn small" data-t="sprint">SPRINT</button>
+            <button class="t-btn small" data-t="brake">BRAKE</button>
+            <button class="t-btn big" data-t="pedal">PEDAL</button>
+          </div>
+        </div>
+
+        <!-- PAUSE -->
+        <section id="pause" class="screen overlay">
+          <div class="panel center-panel">
+            <h1>Paused</h1>
+            <button class="btn primary wide" id="btn-resume">Resume</button>
+            <button class="btn wide" id="btn-restart">Restart race</button>
+            <button class="btn wide" id="btn-pause-settings">Settings</button>
+            <button class="btn wide mobile-only" id="btn-mute">Sound: on</button>
+            <button class="btn ghost wide" id="btn-quit">Quit to menu</button>
+          </div>
+        </section>
+
+        <!-- RESULTS -->
+        <section id="results" class="screen overlay">
+          <div class="results-wrap">
+            <div class="podium" id="podium"></div>
+            <div class="panel results-panel">
+              <h1 id="res-title">Race complete</h1>
+              <div class="res-sub" id="res-sub"></div>
+              <table class="res-table">
+                <thead><tr><th>#</th><th>Rider</th><th>Time</th><th>Best lap</th></tr></thead>
+                <tbody id="res-body"></tbody>
+              </table>
+              <div class="xp-box">
+                <div class="xp-line" id="xp-lines"></div>
+                <div class="xpbar big"><div id="res-xp"></div></div>
+                <div class="xp-level" id="res-level"></div>
+              </div>
+              <div class="btn-row">
+                <button class="btn ghost" id="btn-res-skip">Skip to end</button>
+                <button class="btn" id="btn-res-menu">Main menu</button>
+                <button class="btn primary" id="btn-rematch">Rematch</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div id="rotate"><b>📱</b>Rotate your device<br />to landscape to race</div>
+        <div id="toast"></div>
+        <div id="fade"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

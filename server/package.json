@@ -1,0 +1,15 @@
+{
+  "name": "@cyclegame/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@cyclegame/shared": "1.0.0",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "cyclegame",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Velo Rush - 3D multiplayer arcade cycling racer (Three.js + Node.js WebSockets)",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "node tools/sim-test.mjs",
+    "test:net": "node tools/net-test.mjs",
+    "track:preview": "node tools/track-preview.mjs track.svg",
+    "test:speed": "node tools/speed-test.mjs",
+    "test:validate": "node tools/validate-test.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}

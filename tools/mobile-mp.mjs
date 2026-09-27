@@ -1,0 +1,94 @@
+// Cross-device test: desktop host + phone guest (touch only) race together; then phone time trial + ghost.
+// Usage: node tools/mobile-mp.mjs <outDir>  (client :5173 + server :8080)
+import puppeteer from 'puppeteer-core';
+import { mkdirSync } from 'node:fs';
+const out = process.argv[2] || 'mobmp';
+mkdirSync(out, { recursive: true });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const errors = [];
+const res = [];
+const ok = (c, m) => res.push(`${c ? 'PASS' : 'FAIL'} ${m}`);
+const launch = () => puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new', args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const bA = await launch();
+const bB = await launch();
+const A = await bA.newPage();
+const B = await bB.newPage();
+await A.setViewport({ width: 1280, height: 720 });
+await B.setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36');
+await B.setViewport({ width: 915, height: 412, isMobile: true, hasTouch: true, deviceScaleFactor: 2.6, isLandscape: true });
+for (const [p, n] of [[A, 'PC'], [B, 'PHONE']]) {
+  p.on('pageerror', (e) => errors.push(n + ' ' + e.message));
+  p.on('console', (m) => m.type() === 'error' && errors.push(n + ' ' + m.text()));
+  await p.goto('http://localhost:5173/');
+}
+for (const p of [A, B]) await p.waitForFunction(() => document.getElementById('menu-main')?.classList.contains('show'), { timeout: 180000 });
+await A.evaluate(() => { window.__app.profile.name = 'DesktopHost'; window.__app.settings.quality = 'low'; window.__app.applySettings(); });
+const tapB = async (sel) => {
+  await B.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'center' }), sel);
+  await B.tap(sel);
+  await sleep(350);
+};
+await A.click('[data-go="mp"]');
+await sleep(1000);
+await A.click('#btn-create');
+await A.waitForFunction(() => document.getElementById('menu-lobby').classList.contains('show'), { timeout: 8000 });
+await A.select('#lobby-track', 'city');
+await sleep(400);
+const code = await A.$eval('#lobby-code', (e) => e.textContent);
+await tapB('[data-go="mp"]');
+await sleep(1000);
+await tapB('#mp-name');
+await B.evaluate(() => (document.getElementById('mp-name').value = ''));
+await B.type('#mp-name', 'PhoneRider');
+await B.evaluate(() => document.getElementById('mp-name').dispatchEvent(new Event('change')));
+await tapB('#mp-code');
+await B.type('#mp-code', code);
+await tapB('#btn-join');
+await B.waitForFunction(() => document.getElementById('menu-lobby').classList.contains('show'), { timeout: 8000 });
+await sleep(6000); // phone preloads the host's map (city)
+ok(await B.evaluate(() => window.__app.track.id === 'city'), 'phone preloaded the host map (City Night)');
+await B.screenshot({ path: `${out}/phone-lobby.png` });
+await A.click('#btn-ready');
+await tapB('#btn-ready');
+await sleep(600);
+await A.click('#btn-host-start');
+await B.waitForFunction(() => window.__app.session?.phase === 'racing', { timeout: 30000 });
+const pedal = await B.evaluate(() => { const r = document.querySelector('[data-t="pedal"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+await B.touchscreen.touchStart(pedal.x, pedal.y);
+await A.keyboard.down('KeyW');
+await sleep(6000);
+const iB = await B.evaluate(() => { const s = window.__app.session; return { kmh: Math.round(s.me.bike.v * 3.6), remotes: [...s.remotes.values()].map((r) => r.name), map: window.__app.track.id }; });
+const iA = await A.evaluate(() => { const s = window.__app.session; return { remotes: [...s.remotes.values()].map((r) => r.name + '@' + r.st.u.toFixed(0)) }; });
+ok(iB.kmh > 25 && iB.map === 'city', `phone rides with touch in the online race (${iB.kmh} km/h)`);
+ok(iA.remotes.some((n) => n.startsWith('PhoneRider')), `desktop sees the phone rider (${iA.remotes.join(', ')})`);
+ok(iB.remotes.includes('DesktopHost'), 'phone sees the desktop rider');
+await B.screenshot({ path: `${out}/phone-race.png` });
+await B.touchscreen.touchEnd();
+await tapB('#btn-pause');
+await tapB('#btn-quit');
+await sleep(1500);
+// ---- phone: time trial, record a lap, rematch → ghost ----
+await B.evaluate(() => localStorage.removeItem('velorush.ghost.mountain.1'));
+await B.evaluate(() => window.__app.startLocal({ mode: 'timetrial', laps: 1, ai: 0, skill: 'medium', track: 'mountain' }));
+await B.waitForFunction(() => window.__app.session?.phase === 'racing', { timeout: 60000 });
+await B.touchscreen.touchStart(pedal.x, pedal.y);
+await sleep(8000);
+await B.evaluate(() => { const s = window.__app.session, t = window.__app.track, b = s.player.bike; for (let u = b.u; u < t.length - 30; u += 5) { b.u = u; s.race.checkProgress(s.player); } b.s = t.wrap(b.u); b.y = t.sample(b.s).y; b.yaw = t.sample(b.s).head; b.d = 0; });
+await B.waitForFunction(() => document.getElementById('results').classList.contains('show'), { timeout: 30000 }).catch(() => {});
+await B.touchscreen.touchEnd();
+ok(await B.evaluate(() => (JSON.parse(localStorage.getItem('velorush.ghost.mountain.1') || 'null')?.frames?.length || 0) > 0), 'phone time trial saved a ghost');
+const resShown = await B.evaluate(() => document.getElementById('results').classList.contains('show'));
+ok(resShown, 'phone time trial reaches results');
+res.push('INFO phase=' + (await B.evaluate(() => window.__app.session?.phase + ' finished=' + window.__app.session?.player.finished + ' u=' + Math.round(window.__app.session?.player.bike.u))));
+if (!resShown) { console.log(res.join(String.fromCharCode(10))); console.log(errors.join(String.fromCharCode(10))); process.exit(1); }
+await tapB('#btn-rematch');
+await B.waitForFunction(() => window.__app.session?.phase === 'racing', { timeout: 30000 });
+await B.touchscreen.touchStart(pedal.x, pedal.y);
+await sleep(2500);
+ok(await B.evaluate(() => !!window.__app.session.ghostView && window.__app.session.ghostView.model.root.visible), 'ghost replays on the phone');
+await B.screenshot({ path: `${out}/phone-ghost.png` });
+await B.touchscreen.touchEnd();
+console.log(res.join('\n'));
+console.log('--- errors ---\n' + (errors.join('\n') || '(none)'));
+await bA.close();
+await bB.close();
