@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { App } from './core/App.js';
-import { isMobile } from './core/device.js';
+import { isMobile, lockMobileZoom } from './core/device.js';
 
 if (isMobile()) document.body.classList.add('mobile');
+lockMobileZoom();
 
 const app = new App();
 window.__app = app; // handy for debugging in the console

@@ -26,6 +26,30 @@ export function keepMobileFullscreen(wanted) {
   window.addEventListener('click', again, { capture: true, passive: true });
 }
 
+/**
+ * iOS Safari ignores user-scalable=no: holding PEDAL while steering with a second thumb reads as a
+ * pinch, and quick repeated taps as double-tap zoom. Block both (one-finger menu scrolling still works).
+ */
+export function lockMobileZoom() {
+  if (!isMobile()) return;
+  const block = (e) => e.preventDefault();
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, block, { passive: false });
+  document.addEventListener('touchmove', (e) => e.touches.length > 1 && e.preventDefault(), { passive: false });
+  let lastEnd = 0;
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      const now = e.timeStamp;
+      // in a race only: a second tap within 350 ms would be a double-tap zoom
+      // (not on click-driven buttons like pause/menus: cancelling touchend would swallow their click)
+      const clicky = e.target.closest?.('button, a, select, input, label') && !e.target.closest('.t-btn');
+      if (document.body.classList.contains('racing') && !clicky && now - lastEnd < 350) e.preventDefault();
+      lastEnd = now;
+    },
+    { passive: false },
+  );
+}
+
 /** Fullscreen + landscape lock where the browser allows it (Android Chrome; iOS ignores it). */
 export function enterMobileFullscreen() {
   if (!isMobile()) return;
