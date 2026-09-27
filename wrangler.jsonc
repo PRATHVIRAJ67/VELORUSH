@@ -1,0 +1,19 @@
+// Cloudflare Worker config. Deploy with: npm run deploy  (builds the client, then wrangler deploy)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "velo-rush",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./client/dist",
+    "binding": "ASSETS",
+    // WebSocket upgrades on "/" must reach the Worker instead of index.html
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "GAME", "class_name": "GameServerDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameServerDO"] }],
+  "observability": { "enabled": true }
+}

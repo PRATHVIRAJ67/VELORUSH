@@ -45,6 +45,18 @@ npm start         # serves the game AND the WebSocket server on http://localhost
 
 Set `PORT=9000 npm start` to change the port. To point a separately hosted client at another server, build with `VITE_SERVER_URL=wss://your-host npm run build`, or type the address into the *Server* field on the Multiplayer screen.
 
+### Deploy to Cloudflare (Workers + Durable Objects)
+
+The Worker serves the built game, and one Durable Object runs the same `GameServer` as the Node server. The game rules, anti-cheat and reconnection are identical, and the game page and the WebSocket share one URL.
+
+```bash
+npx wrangler login   # once: opens the browser to authorise your Cloudflare account
+npm run deploy       # builds the client, then deploys → https://velo-rush.<your-subdomain>.workers.dev
+npm run cf:dev       # optional: run the Worker locally on http://localhost:8787
+```
+
+The config lives in `wrangler.jsonc`. After a deploy, check the live server with `SERVER_URL=wss://velo-rush.<your-subdomain>.workers.dev node tools/net-test.mjs`, and read its logs with `npx wrangler tail`.
+
 ## Testing multiplayer locally
 
 1. Start the server (`npm run dev:server`) and the client (`npm run dev:client`).
@@ -105,9 +117,11 @@ Other devices on your LAN can join at `http://<your-LAN-IP>:5173`. The client co
   src/audio/            AudioEngine (synth SFX and ambience), Music (sequencer)
   src/fx/               particles and speed lines
   src/ui/               UI controller, minimap, garage preview, CSS
-/server                 Node.js server
-  index.js              HTTP (static client build + /health) and WebSocket server, sessions, heartbeat, shutdown
+/server                 multiplayer server
+  GameServer.js         platform-neutral core: clients, sessions, reconnection, rooms, simulation tick
+  index.js              Node host: HTTP (static client build + /health), WebSocket, heartbeat, shutdown
   Room.js               lobby → countdown → racing → results, validation, bots, results
+/worker                 Cloudflare host: Worker serves client/dist, one Durable Object runs GameServer
 /shared                 code used by BOTH client and server
   track.js              spline builder + Mountain GP definition (track-space coordinates, zones, pads, ramps, checkpoints)
   tracks.js             map registry: the five other maps + getTrack(id)

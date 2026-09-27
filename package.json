@@ -19,10 +19,13 @@
     "test:net": "node tools/net-test.mjs",
     "track:preview": "node tools/track-preview.mjs track.svg",
     "test:speed": "node tools/speed-test.mjs",
-    "test:validate": "node tools/validate-test.mjs"
+    "test:validate": "node tools/validate-test.mjs",
+    "cf:dev": "npm run build && wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",
-    "puppeteer-core": "^25.12.0"
+    "puppeteer-core": "^25.12.0",
+    "wrangler": "^4.142.0"
   }
 }

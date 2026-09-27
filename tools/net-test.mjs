@@ -10,7 +10,8 @@ import { gridSlot } from '../shared/race.js';
 import { C, S, PROTOCOL_VERSION, packBike } from '../shared/protocol.js';
 
 const PORT = 8099;
-const URL = `ws://localhost:${PORT}`;
+// SERVER_URL=ws://localhost:8787 tests an already-running server (e.g. wrangler dev) instead of spawning one
+const URL = process.env.SERVER_URL || `ws://localhost:${PORT}`;
 const track = getTrack();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0 = Date.now();
@@ -24,9 +25,9 @@ const check = (cond, msg) => {
   }
 };
 
-const server = spawn(process.execPath, ['server/index.js'], { env: { ...process.env, PORT: String(PORT), VR_DEBUG: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
-server.stdout.on('data', (d) => (process.env.VERBOSE || /violation/.test(d)) && process.stdout.write('  srv ' + d));
-server.stderr.on('data', (d) => process.stdout.write('  srv ERR ' + d));
+const server = process.env.SERVER_URL ? null : spawn(process.execPath, ['server/index.js'], { env: { ...process.env, PORT: String(PORT), VR_DEBUG: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+server?.stdout.on('data', (d) => (process.env.VERBOSE || /violation/.test(d)) && process.stdout.write('  srv ' + d));
+server?.stderr.on('data', (d) => process.stdout.write('  srv ERR ' + d));
 await sleep(700);
 
 class Bot {
@@ -207,6 +208,6 @@ clearInterval(A.timer);
 clearInterval(B.timer);
 A.ws.close();
 B.ws.close();
-server.kill('SIGINT');
+server?.kill('SIGINT');
 log(failures ? `${failures} FAILURE(S)` : 'ALL PASSED');
 process.exit(failures ? 1 : 0);

@@ -3,3 +3,5 @@ client/dist/
 *.log
 track.svg
 .DS_Store
+.wrangler/
+.dev.vars
