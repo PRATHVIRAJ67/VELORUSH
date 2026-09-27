@@ -10,7 +10,7 @@
     <style>
       html, body { margin: 0; height: 100%; background: #0b1220; color: #f3f6fb; overflow: hidden; }
       /* zero specificity: the real stylesheet always wins once it has loaded */
-      :where(.screen, .touch) { display: none; }
+      :where(.screen, .touch, .controls-card) { display: none; }
       #loading.show { display: block; position: fixed; inset: 0; }
     </style>
     <link rel="stylesheet" href="/src/ui/ui.css" />
@@ -256,6 +256,34 @@
             <button class="t-btn big" data-t="pedal">PEDAL</button>
           </div>
         </div>
+
+        <!-- CONTROLS CARD: shown before every race (OK, Enter/Space or 5 s) -->
+        <section id="controls-card" class="controls-card" aria-live="polite">
+          <div class="panel cc-panel">
+            <h2>Controls</h2>
+            <div class="cc-grid cc-keys">
+              <div><kbd>W / ↑</kbd><span>Pedal</span></div>
+              <div><kbd>S / ↓</kbd><span>Brake</span></div>
+              <div><kbd>A D / ← →</kbd><span>Steer</span></div>
+              <div><kbd>Shift</kbd><span>Sprint (uses stamina)</span></div>
+              <div><kbd>Space</kbd><span>Burst boost</span></div>
+              <div><kbd>R</kbd><span>Reset bike</span></div>
+              <div><kbd>C</kbd><span>Camera distance</span></div>
+              <div><kbd>Esc / P</kbd><span>Pause</span></div>
+            </div>
+            <div class="cc-grid cc-touch">
+              <div><kbd>PEDAL</kbd><span>Hold to ride (bottom right)</span></div>
+              <div><kbd>◀ ▶</kbd><span>Steer (bottom left)</span></div>
+              <div><kbd>SPRINT</kbd><span>Hold to sprint (uses stamina)</span></div>
+              <div><kbd>BRAKE</kbd><span>Slow down</span></div>
+              <div><kbd>BOOST</kbd><span>Burst boost</span></div>
+              <div><kbd>CAM / RESET</kbd><span>Camera · reset bike</span></div>
+              <div><kbd>❚❚</kbd><span>Pause</span></div>
+            </div>
+            <button class="btn primary wide" id="btn-controls-ok">OK, let's ride</button>
+            <div class="cc-timer"><i id="cc-fill"></i></div>
+          </div>
+        </section>
 
         <!-- PAUSE -->
         <section id="pause" class="screen overlay">

@@ -198,6 +198,7 @@ export class App {
     // leaving a race from the pause menu must not leave controls disabled for the next one
     this._pauseOverlay = false;
     this.input.enabled = true;
+    this.ui.hideControlsCard();
     this.audio.silenceRide();
   }
 

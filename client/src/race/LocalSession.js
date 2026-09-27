@@ -79,7 +79,8 @@ export class LocalSession extends SessionBase {
     if (this.paused) return;
     const inp = app.input.read();
     if (!this.player.finished) Object.assign(this.player.input, inp);
-    this.race.update(dt);
+    // offline races hold the countdown while the controls card is up (online ones follow the server clock)
+    if (!app.ui.controlsCardOpen) this.race.update(dt);
     this.tickCountdown(this.race.time);
     for (const e of this.race.drainEvents()) this.handleEvent(e);
     this.handleBikeEvents(this.player.bike, consumeEvents(this.player.bike));

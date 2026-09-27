@@ -30,6 +30,7 @@ export class SessionBase {
     this.app.ui.showHud();
     this.app.ui.message('READY', this.app.track.name);
     this.app.world.props.setStartLights(0);
+    this.app.ui.showControlsCard();
   }
 
   tickCountdown(raceTime) {
@@ -47,6 +48,7 @@ export class SessionBase {
 
   onGo() {
     this.phase = 'racing';
+    this.app.ui.hideControlsCard();
     this.app.ui.message('GO!', '', 'go');
     this.app.audio.play('go');
     this.app.audio.say('Go!');

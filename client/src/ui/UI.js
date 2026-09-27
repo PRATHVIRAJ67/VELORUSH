@@ -114,6 +114,29 @@ export class UI {
     document.body.classList.toggle('touch-on', on);
   }
 
+  // ---------------- controls card (before every race) ----------------
+  showControlsCard(ms = 5000) {
+    clearTimeout(this._ccTimer);
+    $('controls-card').classList.add('show');
+    // progress bar drains over the auto-close time
+    const fill = $('cc-fill');
+    fill.style.transition = 'none';
+    fill.style.width = '100%';
+    void fill.offsetWidth;
+    fill.style.transition = `width ${ms}ms linear`;
+    fill.style.width = '0%';
+    this._ccTimer = setTimeout(() => this.hideControlsCard(), ms);
+  }
+
+  hideControlsCard() {
+    clearTimeout(this._ccTimer);
+    $('controls-card').classList.remove('show');
+  }
+
+  get controlsCardOpen() {
+    return $('controls-card').classList.contains('show');
+  }
+
   // ---------------- messages ----------------
   message(text, sub = '', cls = '') {
     const m = $('hud-msg');
@@ -468,6 +491,12 @@ export class UI {
     // pause
     click('btn-pause', () => app.togglePause());
     click('btn-resume', () => app.togglePause(false));
+    click('btn-controls-ok', () => this.hideControlsCard());
+    window.addEventListener('keydown', (e) => {
+      if (!this.controlsCardOpen || !['Enter', 'Space', 'NumpadEnter'].includes(e.code)) return;
+      e.preventDefault();
+      this.hideControlsCard();
+    });
     click('btn-restart', () => app.session?.restart());
     click('btn-quit', () => app.quitToMenu());
     click('btn-mute', () => {
