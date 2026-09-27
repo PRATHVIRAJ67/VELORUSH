@@ -15,7 +15,7 @@ import { RiderView } from '../entities/RiderView.js';
 import { LocalSession } from '../race/LocalSession.js';
 import { NetClient } from '../net/NetClient.js';
 import { loadSettings, loadProfile, saveSettings } from './Storage.js';
-import { enterMobileFullscreen } from './device.js';
+import { enterMobileFullscreen, keepMobileFullscreen } from './device.js';
 
 export class App {
   constructor() {
@@ -59,6 +59,8 @@ export class App {
     };
     // iOS Safari only unlocks WebAudio on touchend/click
     for (const ev of ['pointerdown', 'keydown', 'touchend', 'click']) window.addEventListener(ev, unlock);
+    // back from another app mid-race: the next tap puts the phone back in fullscreen
+    keepMobileFullscreen(() => !!this.session);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.session?.canPause && this.session.phase === 'racing' && !this.session.paused) this.togglePause(true);
     });
