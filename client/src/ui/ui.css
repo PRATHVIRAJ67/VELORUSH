@@ -467,6 +467,50 @@ body.mobile .hud-minimap { right: max(16px, env(safe-area-inset-right)); }
 body.mobile .t-left { left: max(18px, env(safe-area-inset-left)); }
 body.mobile .t-right { right: max(18px, env(safe-area-inset-right)); }
 
+/* ---------------- touch race layout: every cluster placed relative to the others, sized by screen height ----------------
+   (only when touch controls are on, so PC keyboard play is untouched) */
+body.touch-on {
+  --tb: 82px; --tb-big: 110px; --tb-sw: 70px; --tb-sh: 54px; --tu-w: 58px; --tu-h: 42px;
+  --t-pad: 18px; --t-gap: 12px; --mm: 200px; --mm-top: 14px; --sp-w: 150px; --sp-h: 92px; --sp-v: 36px; --bars-w: 170px;
+  --t-l: max(18px, env(safe-area-inset-left)); --t-r: max(18px, env(safe-area-inset-right));
+}
+@media (max-height: 520px) {
+  body.touch-on { --tb: 70px; --tb-big: 96px; --tb-sw: 62px; --tb-sh: 46px; --t-pad: 14px; --t-gap: 10px; --mm: 120px; --sp-w: 124px; --sp-h: 78px; --sp-v: 32px; --bars-w: 130px; }
+}
+/* short landscape: iPhone Safari with its address + tab bars leaves ~260-330 px */
+@media (max-height: 360px) {
+  body.touch-on { --tb: 58px; --tb-big: 80px; --tb-sw: 56px; --tb-sh: 40px; --tu-w: 52px; --tu-h: 34px; --t-pad: 8px; --t-gap: 8px; --mm: 84px; --mm-top: 8px; --sp-w: 108px; --sp-h: 68px; --sp-v: 28px; --bars-w: 112px; }
+  body.touch-on .hud-top-left { top: 8px; }
+  body.touch-on .hud-pos b { font-size: 36px; }
+  body.touch-on .hud-pos sup { font-size: 17px; }
+  body.touch-on .hud-pos span { font-size: 17px; }
+  body.touch-on .hud-top-center { top: 6px; }
+  body.touch-on .hud-timer { font-size: 22px; }
+  body.touch-on .hud-lap { font-size: 11px; }
+  body.touch-on .speedo-val small { font-size: 10px; }
+  body.touch-on .hud-bars { padding-bottom: 4px; }
+}
+body.touch-on .touch { inset: 0; height: auto; }
+/* speed + bars stay bottom-centre between the thumb clusters (also on narrow phones, where the
+   portrait rule would move them into the corner under PEDAL); the speedo fits its column */
+body.touch-on .hud-bottom {
+  top: auto; right: auto; left: 50%; bottom: calc(var(--t-pad) / 2 + var(--safe-b)); transform: translateX(-50%);
+  width: auto; grid-template-columns: var(--sp-w) var(--bars-w); gap: 8px;
+}
+body.touch-on .speedo { width: var(--sp-w); height: var(--sp-h); }
+body.touch-on .speedo-val b { font-size: var(--sp-v); }
+body.touch-on .t-left { left: var(--t-l); bottom: calc(var(--t-pad) + var(--safe-b)); gap: var(--t-gap); }
+body.touch-on .t-right { right: var(--t-r); bottom: calc(var(--t-pad) + var(--safe-b)); gap: var(--t-gap); width: calc(3 * var(--tb-sw) + 2 * var(--t-gap)); }
+body.touch-on .t-btn { width: var(--tb); height: var(--tb); }
+body.touch-on .t-btn.big { width: var(--tb-big); height: var(--tb-big); }
+body.touch-on .t-btn.small { width: var(--tb-sw); height: var(--tb-sh); }
+/* CAM / RESET: a row just above the steering arrows, clear of the position read-out */
+body.touch-on .t-util { top: auto; left: var(--t-l); bottom: calc(var(--t-pad) + var(--safe-b) + var(--tb) + var(--t-gap)); flex-direction: row; gap: var(--t-gap); }
+body.touch-on .t-btn.util { width: var(--tu-w); height: var(--tu-h); }
+/* minimap sized to fit above the BOOST/SPRINT/BRAKE row; pause sits beside it, away from PEDAL */
+body.touch-on .hud-minimap { top: var(--mm-top); width: var(--mm); height: var(--mm); }
+body.touch-on .pause-btn { top: var(--mm-top); right: calc(max(16px, env(safe-area-inset-right)) + var(--mm) + 10px); }
+
 /* map cards */
 .sub-title { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 18px 0 10px; }
 .map-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 262px)); gap: 12px; }
