@@ -29,6 +29,9 @@ export const PHYSICS = {
   latGrip: 9.2, // max lateral accel (m/s^2) -> limits corner speed
   maxYawRate: 2.3,
   steerRate: 5.5, // how fast steering input ramps
+  // holding the turn into a corner taken too fast bleeds speed instead of running wide
+  // (kept below brakeDecel: braking before the corner is still the quicker line)
+  cornerScrub: 4.8,
   assistAlign: 0.55, // gentle auto-align toward road direction when not steering
   maxLean: 0.74, // rad (~42 deg)
   staminaMax: 100,

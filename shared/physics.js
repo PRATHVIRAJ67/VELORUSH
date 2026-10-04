@@ -69,6 +69,7 @@ export function createBike(track, u = 0, d = 0) {
 export const emptyInput = () => ({ throttle: 0, brake: 0, steer: 0, sprint: false, boost: false, reset: false });
 
 const _c = {};
+const _cA = {};
 
 /** Read + clear accumulated one-shot events (audio/fx). */
 export function consumeEvents(b, out = {}) {
@@ -203,6 +204,7 @@ export function stepBike(b, input, dt, track, stats) {
   b.sling = Math.max(0, b.sling - dt);
   b.brakeT += (brake - b.brakeT) * damp(8, dt);
   let a = 0;
+  let scrub = 0;
   if (!b.airborne) {
     if (throttle > 0) {
       const band = P.bandAccel * (1 + b.effort * 0.5) * stats.power * Math.max(0, 1 - (vAbs / P.bandSpeed) ** 2)
@@ -221,8 +223,31 @@ export function stepBike(b, input, dt, track, stats) {
     const brakeGrip = grip * fade * (1 - 0.45 * clamp(Math.abs(b.lean) / P.maxLean, 0, 1));
     a -= brake * P.brakeDecel * brakeGrip;
     a -= Math.abs(yawRate) * vAbs * 0.03; // cornering scrub
+    // corners taken too fast: bleed speed so the bike makes the turn instead of running wide.
+    // Sets the net deceleration (pedalling or a descent can't cancel it), never stronger than the brakes.
+    if ((stats.assist ?? 0) > 0) {
+      // steering assist on: look one scrub distance ahead and ease off so the next corner fits
+      const kGrip = P.latGrip * grip * 0.97;
+      const L = Math.min(90, (vAbs * vAbs) / (2 * P.cornerScrub) + 8);
+      for (let x = 2; x <= L; x += 2.5) {
+        const k = Math.abs(track.sample(b.s + x, _cA).curv);
+        if (k < 0.004) continue;
+        const need = (vAbs * vAbs - kGrip / k) / (2 * x);
+        if (need > scrub) scrub = need;
+      }
+    } else if (!stats.ai) {
+      // assist off: only while the rider holds the turn into a corner the tyres can't follow
+      // and is already drifting towards the outside edge
+      const cA = track.sample(b.s + Math.max(3, vAbs * 0.45), _cA);
+      const curvIn = Math.abs(c.curv) > Math.abs(cA.curv) ? c.curv : cA.curv;
+      const into = clamp(-b.steer * Math.sign(curvIn), 0, 1);
+      const over = Math.abs(curvIn) * vAbs - maxYaw * 0.92; // rad/s the tyres can't give
+      const wide = b.d * Math.sign(curvIn) > track.halfWidth * 0.35;
+      if (over > 0 && into > 0.5 && wide) scrub = over * vAbs * smoothstep(0.5, 0.9, into);
+    }
   }
   a -= P.drag * (stats.aero ?? 1) * vAbs * vAbs * (1 - P.draftDrag * b.draft);
+  if (scrub > 0) a = Math.min(a, -Math.min(P.cornerScrub, scrub));
   b.v = clamp(b.v + a * dt, 0, P.safetyMaxSpeed);
   if (!Number.isFinite(b.v)) b.v = 0;
   if (b.v < 0.05 && throttle === 0) b.v = 0;

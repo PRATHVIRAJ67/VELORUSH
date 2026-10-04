@@ -45,6 +45,7 @@ export class Race {
       cfg.assist ?? 0,
     );
     stats.grip = this.grip;
+    stats.ai = !!cfg.isBot; // AI riders manage their own corner speed (no rider aids)
     const r = {
       id: cfg.id,
       name: cfg.name,
