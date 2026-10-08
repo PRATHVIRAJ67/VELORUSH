@@ -2,6 +2,7 @@
 // WebSocket to one Durable Object that runs the same GameServer as the Node server.
 import { DurableObject } from 'cloudflare:workers';
 import { GameServer } from '../server/GameServer.js';
+import { parseBatch } from '../server/analytics.js';
 
 const log = (...a) => console.log(...a);
 
@@ -32,9 +33,27 @@ export class GameServerDO extends DurableObject {
   }
 }
 
+// anonymous gameplay events -> Workers Analytics Engine (dataset bound as EVENTS in wrangler.jsonc)
+async function analytics(request, env) {
+  const cors = { 'access-control-allow-origin': '*' };
+  if (request.method !== 'POST') return new Response(null, { status: 204, headers: cors });
+  const batch = parseBatch(await request.text().catch(() => ''));
+  if (batch && env.EVENTS) {
+    for (const r of batch.rows) {
+      try {
+        env.EVENTS.writeDataPoint({ blobs: r.blobs, doubles: r.doubles, indexes: [batch.aid] });
+      } catch {
+        /* analytics never fails a request */
+      }
+    }
+  }
+  return new Response(null, { status: 204, headers: cors });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/a') return analytics(request, env);
     if (request.headers.get('Upgrade') === 'websocket' || url.pathname === '/health') {
       return env.GAME.get(env.GAME.idFromName('global')).fetch(request);
     }

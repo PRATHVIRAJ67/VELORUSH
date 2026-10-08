@@ -169,6 +169,39 @@ Other devices on your LAN can join at `http://<your-LAN-IP>:5173`. The client co
 | Mountain descent (in game) | 64 → 113+ km/h, braking into the corners |
 | Braking 100 → 30 km/h | ≈ 53 m (brakes fade above ≈ 70 km/h) |
 
+## Progress and analytics
+
+**Player progress** (`client/src/core/progress.js`) builds on the saved profile, so existing saves keep everything they already earned:
+
+- **Medals**: every map and lap count has Bronze, Silver and Gold target times. They are calibrated by `node tools/medal-times.mjs`: Gold ≈ Elite AI, Silver ≈ Pro AI, Bronze ≈ a first clean ride. Rerun it if physics or tracks change. Map cards show your best medal and the hardest AI field you have beaten.
+- **Next goal**: after a race, the results screen shows how far you are from the next medal or your best, plus a one-tap action: race your ghost, try a harder field, or go to the next map.
+- **Daily Ride**: one challenge per calendar day (the same for everyone), started from the profile card on the main menu. It gives bonus XP and a streak; missing a day resets the streak.
+
+**Analytics** are anonymous: a random install id, no names and no profile data. The client (`client/src/core/analytics.js`) batches events and posts them with `sendBeacon` to `/a` on the game server. In production the Worker validates them (`server/analytics.js`) and stores them in Workers Analytics Engine (dataset `velorush_events`). The Node server only validates them; set `VR_ANALYTICS=1` to log them. Analytics failures never affect the game.
+
+Events: `session_start`, `session_pause`, `session_end`, `menu_view`, `race_start`, `race_finish`, `race_quit`, `race_again`, `goal_click`, `personal_best`, `medal`, `level_up`, `daily_complete`, `multiplayer_race`, `multiplayer_finish`.
+
+Columns: `blob1` event, `blob2` map, `blob3` mode, `blob4` detail (e.g. difficulty, `daily`, the source of a race start), `blob5` platform, `blob6` build (`web`, `app`, `crazygames`), `blob7` install id, `blob8` session id, `double1` value, `double2` second value. For example, `race_finish` has place / time, `session_start` has days since first play / session number, and `race_quit` has the % of the race done.
+
+Query them with an API token that has *Account Analytics Read* permission:
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/analytics_engine/sql"   -H "Authorization: Bearer <TOKEN>" --data "<SQL>"
+```
+
+```sql
+-- races per session (do players go again?)
+SELECT blob8 AS session, count() AS races FROM velorush_events WHERE blob1 = 'race_finish' GROUP BY session
+-- returning players: sessions by days since first play (0 = first day, 1 = next day, ...)
+SELECT double1 AS day, count(DISTINCT blob7) AS players FROM velorush_events WHERE blob1 = 'session_start' GROUP BY day ORDER BY day
+-- where players give up mid-race
+SELECT blob2 AS map, blob3 AS mode, avg(double1) AS pct_done, count() AS quits FROM velorush_events WHERE blob1 = 'race_quit' GROUP BY map, mode
+-- which maps and modes get replayed
+SELECT blob2 AS map, blob3 AS mode, count() AS rematches FROM velorush_events WHERE blob1 = 'race_again' GROUP BY map, mode
+-- do the next-goal buttons get used?
+SELECT blob4 AS goal, count() AS clicks FROM velorush_events WHERE blob1 = 'goal_click' GROUP BY goal
+```
+
 ## Tests and tools
 
 ```bash

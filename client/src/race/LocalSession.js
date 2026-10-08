@@ -6,6 +6,8 @@ import { makeRng } from '@shared/math.js';
 import { RiderView } from '../entities/RiderView.js';
 import { loadGhost, saveGhost, addXp, saveProfile } from '../core/Storage.js';
 import { SessionBase } from './SessionBase.js';
+import { medalFor, MEDAL_XP, recordWin, nextGoal, dailyChallenge, dailyMet, dailyStatus, completeDaily } from '../core/progress.js';
+import { analytics } from '../core/analytics.js';
 
 const SKILL_ORDER = ['easy', 'medium', 'hard', 'elite'];
 
@@ -181,6 +183,37 @@ export class LocalSession extends SessionBase {
         lines.push(['New personal best', XP.bestLap]);
       }
     }
+    const trackId = this.app.track.id;
+    const laps = this.race.laps;
+    // time-trial medals (first time a tier is reached on this map + lap count)
+    let medal = null;
+    if (this.mode === 'timetrial') {
+      const before = medalFor(trackId, laps, prevBest);
+      const now = medalFor(trackId, laps, p.finishTime);
+      if (now && (!before || now.rank > before.rank)) {
+        medal = now;
+        xp += MEDAL_XP[now.id];
+        lines.push([`${now.icon} ${now.name} medal`, MEDAL_XP[now.id]]);
+      }
+    }
+    if (place === 1 && n > 1) recordWin(prof, trackId, this.opts.skill);
+    // Daily Ride: only the challenge started from today's card counts
+    let daily = null;
+    let dailyMissed = null;
+    if (this.opts.daily) {
+      const ch = dailyChallenge();
+      if (ch.key !== this.opts.daily) {
+        /* the day changed mid-race: yesterday's ride no longer counts */
+      } else if (!dailyMet(ch, { time: p.finishTime, place })) {
+        if (!dailyStatus(prof, ch).doneToday) dailyMissed = ch;
+      } else {
+        daily = completeDaily(prof, ch);
+        if (daily) {
+          xp += daily.xp;
+          lines.push([daily.streak > 1 ? `Daily Ride · ${daily.streak}-day streak` : 'Daily Ride complete', daily.xp]);
+        }
+      }
+    }
     prof.races++;
     if (place === 1 && n > 1) prof.wins++;
     saveProfile(prof);
@@ -188,7 +221,21 @@ export class LocalSession extends SessionBase {
     if (this.mode === 'timetrial' && (newRecord || !this.ghostData)) {
       saveGhost(this.ghostKey, { time: p.finishTime, frames: this.recording });
     }
-    this.finishInfo = { xp: xpRes, lines, newRecord, prevBest };
+    const ahead = place > 1 ? this.race.standings()[place - 2] : null;
+    let goal = nextGoal({
+      mode: this.mode, trackId, laps, time: p.finishTime, place, field: n, skill: this.opts.skill, prevBest,
+      rival: ahead && ahead.finished ? { name: ahead.name, gap: p.finishTime - ahead.finishTime } : null,
+      opts: this.opts,
+    });
+    if (daily) goal = { title: `🔥 Daily Ride complete${daily.streak > 1 ? ` · ${daily.streak}-day streak` : ''}`, sub: 'A new ride is waiting tomorrow', action: goal?.action || null };
+    else if (dailyMissed) goal = { title: `Daily Ride: ${dailyMissed.title}`, sub: `${dailyMissed.desc} · not this time`, action: { label: 'Try again', opts: this.opts, kind: 'daily_retry' } };
+    this.finishInfo = { xp: xpRes, lines, newRecord, prevBest, goal, medal, daily };
+    const ev = { m: trackId, md: this.mode };
+    analytics.track('race_finish', { ...ev, x: this.opts.daily ? 'daily' : this.opts.skill || '', v: place, v2: Math.round(p.finishTime * 10) / 10 });
+    if (newRecord && prevBest) analytics.track('personal_best', { ...ev, v: Math.round((prevBest - p.finishTime) * 10) / 10 });
+    if (medal) analytics.track('medal', { ...ev, x: medal.id, v: laps });
+    if (daily) analytics.track('daily_complete', { ...ev, v: daily.streak });
+    if (xpRes.levelsUp) analytics.track('level_up', { v: xpRes.after.level });
     this.enterFinished();
   }
 
@@ -285,7 +332,8 @@ export class LocalSession extends SessionBase {
   }
 
   restart() {
-    this.app.startLocal(this.opts);
+    analytics.track('race_again', { m: this.app.track.id, md: this.mode, x: this.phase === 'results' ? 'results' : 'pause' });
+    this.app.startLocal({ ...this.opts, source: 'rematch' });
   }
 
   dispose() {

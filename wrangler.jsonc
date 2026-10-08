@@ -15,5 +15,7 @@
     "bindings": [{ "name": "GAME", "class_name": "GameServerDO" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameServerDO"] }],
+  // anonymous gameplay analytics (server/analytics.js): query with the Analytics Engine SQL API
+  "analytics_engine_datasets": [{ "binding": "EVENTS", "dataset": "velorush_events" }],
   "observability": { "enabled": true }
 }
