@@ -5,6 +5,8 @@ import { Minimap } from './Minimap.js';
 import { GaragePreview } from './GaragePreview.js';
 import { drawMapPreview, MAP_LIST } from './MapPreview.js';
 import { saveProfile, saveSettings, loadSettings } from '../core/Storage.js';
+import { bestMapMedal, bestWin, medalCount, medalTargets, skillName, dailyChallenge, dailyStatus, DAILY_XP } from '../core/progress.js';
+import { analytics } from '../core/analytics.js';
 
 const $ = (id) => document.getElementById(id);
 const MENUS = ['menu-main', 'menu-play', 'menu-mp', 'menu-lobby', 'menu-garage', 'menu-settings'];
@@ -51,7 +53,8 @@ export class UI {
       (m) => `<button class="map-card" data-track="${m.id}"><canvas width="260" height="130"></canvas>
         <div class="mc-body"><h3>${m.name}</h3><div class="mc-loc">${m.meta.location}</div>
         <div class="mc-stats" data-stats="${m.id}"></div>
-        <div class="mc-style">${m.meta.style}</div><div class="mc-diff">Difficulty <b>${stars(m.meta.difficulty)}</b></div></div></button>`,
+        <div class="mc-style">${m.meta.style}</div><div class="mc-diff">Difficulty <b>${stars(m.meta.difficulty)}</b></div>
+        <div class="mc-prog" data-prog="${m.id}"></div></div></button>`,
     ).join('');
     for (const card of document.querySelectorAll('.map-card')) {
       const st = drawMapPreview(card.querySelector('canvas'), card.dataset.track);
@@ -87,6 +90,7 @@ export class UI {
     if (name === 'mp') this._refreshMp();
     // the public lobby list streams in only while this screen is open
     this.app.net?.watchPublic(name === 'mp');
+    if (name !== this.currentMenu) analytics.track('menu_view', { x: name });
     this.currentMenu = name;
   }
 
@@ -314,6 +318,16 @@ export class UI {
       $('xp-lines').innerHTML = '';
       $('res-level').textContent = '';
     }
+    // what to aim for next (local races)
+    const g = f?.goal;
+    this.goal = g || null;
+    $('res-goal').classList.toggle('show', !!g);
+    if (g) {
+      $('goal-title').textContent = g.title;
+      $('goal-sub').textContent = g.sub || '';
+    }
+    $('btn-goal').style.display = g?.action ? '' : 'none';
+    if (g?.action) $('btn-goal').textContent = g.action.label;
   }
 
   // ---------------- profile ----------------
@@ -322,7 +336,17 @@ export class UI {
     $('pc-name').textContent = p.name;
     $('pc-level').textContent = p.level;
     $('pc-xp').style.width = `${(p.xp / XP.perLevel(p.level)) * 100}%`;
-    $('pc-stats').innerHTML = `<span>${p.races} races</span><span>${p.wins} wins</span>`;
+    const mc = medalCount(p);
+    const medals = mc.gold + mc.silver + mc.bronze;
+    $('pc-stats').innerHTML = `<span>${p.races} races</span><span>${p.wins} wins</span>${medals ? `<span>🥇${mc.gold} 🥈${mc.silver} 🥉${mc.bronze}</span>` : ''}`;
+    // Daily Ride: one shared challenge per day, one tap to start
+    const ch = dailyChallenge();
+    const st = dailyStatus(p, ch);
+    this.daily = ch;
+    $('btn-daily').classList.toggle('done', st.doneToday);
+    $('daily-title').textContent = ch.title;
+    $('daily-desc').textContent = st.doneToday ? 'Done today ✓ · new ride tomorrow' : `${ch.desc} · +${DAILY_XP} XP`;
+    $('daily-streak').textContent = st.streak ? `🔥 ${st.streak}` : '';
   }
 
   // ---------------- play menu ----------------
@@ -334,8 +358,25 @@ export class UI {
     $('opt-skill').value = this._skill ?? m.skill;
     document.querySelectorAll('.ai-only').forEach((e) => (e.style.display = this.selMode === 'timetrial' ? 'none' : ''));
     document.querySelectorAll('.map-card').forEach((c) => c.classList.toggle('sel', c.dataset.track === this.selTrack));
-    const best = this.app.profile.best[`${this.selTrack}.${this.selMode}.${$('opt-laps').value}`];
-    $('tc-best').textContent = best ? `Personal best: ${formatTime(best)}` : 'No personal best yet';
+    const prof = this.app.profile;
+    const laps = Number($('opt-laps').value);
+    const best = prof.best[`${this.selTrack}.${this.selMode}.${laps}`];
+    let line = best ? `Personal best: ${formatTime(best)}` : 'No personal best yet';
+    if (this.selMode === 'timetrial') {
+      // the medal times to beat, so a time trial always has a target
+      const next = medalTargets(this.selTrack, laps)?.slice().reverse().find((m) => best == null || best > m.time);
+      line += next ? ` · next: ${next.icon} ${next.name} ${formatTime(next.time)}` : ' · 🥇 Gold earned';
+    }
+    $('tc-best').textContent = line;
+    // per-map progress on the cards: best time-trial medal + hardest field beaten
+    for (const el of document.querySelectorAll('.mc-prog')) {
+      const id = el.dataset.prog;
+      const m = bestMapMedal(prof, id);
+      const w = bestWin(prof, id);
+      el.textContent = [m ? `${m.medal.icon} ${m.medal.name}` : '', w ? `🏆 ${skillName(w)}` : ''].filter(Boolean).join('  ·  ');
+    }
+    const mc = medalCount(prof);
+    $('tt-medals').textContent = mc.gold + mc.silver + mc.bronze ? `Medals: 🥇${mc.gold} 🥈${mc.silver} 🥉${mc.bronze}` : 'Earn a medal on every map.';
   }
 
   // ---------------- multiplayer ----------------
@@ -590,10 +631,32 @@ export class UI {
       this._fillSettings();
       for (const m of MENUS) $(m).classList.toggle('show', m === 'menu-settings');
     });
-    // results
-    click('btn-rematch', () => app.session?.rematch ? app.session.rematch() : app.session?.restart());
-    click('btn-res-menu', () => (app.session?.leaveResults ? app.session.leaveResults() : app.quitToMenu()));
-    click('btn-res-skip', () => app.session?.skipToEnd?.());
+    // results: a button only reacts to a press that started on it, so a thumb still resting on
+    // PEDAL when the results appear can't fire Rematch/Next by lifting (keyboard Enter still works)
+    let pressed = null;
+    $('results').addEventListener('pointerdown', (e) => (pressed = e.target.closest('button')), true);
+    const resClick = (id, fn) => $(id).addEventListener('click', (e) => {
+      if (e.detail !== 0 && pressed !== $(id)) return; // stray release: ignore silently
+      pressed = null;
+      app.audio.init();
+      app.audio.play('ui');
+      fn(e);
+    });
+    resClick('btn-rematch', () => app.session?.rematch ? app.session.rematch() : app.session?.restart());
+    resClick('btn-res-menu', () => (app.session?.leaveResults ? app.session.leaveResults() : app.quitToMenu()));
+    resClick('btn-res-skip', () => app.session?.skipToEnd?.());
+    resClick('btn-goal', () => {
+      const a = this.goal?.action;
+      if (!a) return;
+      analytics.track('goal_click', { m: app.track.id, md: a.opts.mode, x: a.kind });
+      app.startLocal({ ...a.opts, source: 'goal_' + a.kind });
+    });
+    click('btn-daily', () => {
+      const ch = dailyChallenge();
+      // already done today: ride it again for fun (no second reward)
+      const done = dailyStatus(app.profile, ch).doneToday;
+      app.startLocal({ ...ch.opts, daily: done ? undefined : ch.key, source: done ? 'daily_replay' : 'daily' });
+    });
     // garage
     $('menu-garage').addEventListener('click', (e) => {
       const t = e.target.closest('button');

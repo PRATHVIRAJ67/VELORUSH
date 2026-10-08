@@ -53,6 +53,11 @@
             <div class="pc-level">LEVEL <b id="pc-level">1</b></div>
             <div class="xpbar"><div id="pc-xp"></div></div>
             <div class="pc-stats" id="pc-stats"></div>
+            <button class="daily-card" id="btn-daily">
+              <span class="dc-tag">DAILY RIDE <em id="daily-streak"></em></span>
+              <b id="daily-title"></b>
+              <small id="daily-desc"></small>
+            </button>
           </div>
           <!-- install pop-up (shown by core/install.js when the browser can install the game) -->
           <div class="install-card" id="install-card" role="dialog" aria-label="Install Velo Rush">
@@ -82,7 +87,7 @@
               <div class="mc-icon">🏆</div><h3>AI Race</h3><p>Full grand prix vs a pack of tuned AI rivals.</p>
             </button>
             <button class="mode-card" data-mode="timetrial">
-              <div class="mc-icon">⏱</div><h3>Time Trial</h3><p>Just you, the clock and your ghost.</p>
+              <div class="mc-icon">⏱</div><h3>Time Trial</h3><p>Just you, the clock and your ghost. <span class="tt-medals" id="tt-medals"></span></p>
             </button>
           </div>
           <div class="options-row" id="play-options">
@@ -354,9 +359,11 @@
                 <div class="xpbar big"><div id="res-xp"></div></div>
                 <div class="xp-level" id="res-level"></div>
               </div>
+              <div class="res-goal" id="res-goal"><b id="goal-title"></b><small id="goal-sub"></small></div>
               <div class="btn-row">
                 <button class="btn ghost" id="btn-res-skip">Skip to end</button>
                 <button class="btn" id="btn-res-menu">Main menu</button>
+                <button class="btn goal" id="btn-goal"></button>
                 <button class="btn primary" id="btn-rematch">Rematch</button>
               </div>
             </div>

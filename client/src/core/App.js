@@ -15,8 +15,9 @@ import { RiderView } from '../entities/RiderView.js';
 import { LocalSession } from '../race/LocalSession.js';
 import { NetClient } from '../net/NetClient.js';
 import { loadSettings, loadProfile, saveSettings } from './Storage.js';
-import { enterMobileFullscreen, keepMobileFullscreen } from './device.js';
-import { Installer } from './install.js';
+import { enterMobileFullscreen, keepMobileFullscreen, isMobile } from './device.js';
+import { Installer, isStandalone } from './install.js';
+import { analytics } from './analytics.js';
 
 export class App {
   constructor() {
@@ -44,6 +45,10 @@ export class App {
     this.ui = new UI(this);
     this.installer = new Installer(this.ui);
     this.net = new NetClient(this);
+    analytics.init(this.settings.server, {
+      platform: isMobile() ? 'mobile' : 'desktop',
+      build: import.meta.env.MODE === 'crazygames' ? 'crazygames' : isStandalone() ? 'app' : 'web',
+    });
     await this.loadTrack(this.settings.track || 'mountain', true);
 
     this.input.on('pause', () => this.togglePause());
@@ -164,6 +169,7 @@ export class App {
 
   // ------------------------------------------------------------------
   async startLocal(opts) {
+    analytics.track('race_start', { m: opts.track || this.track.id, md: opts.mode, x: opts.source || (opts.daily ? 'daily' : 'menu'), v: opts.laps, v2: opts.ai });
     this.audio.init();
     enterMobileFullscreen();
     if (opts.track) await this.loadTrack(opts.track);
@@ -187,6 +193,7 @@ export class App {
   }
 
   startSession(session) {
+    analytics.track('multiplayer_race', { m: this.track.id, md: 'multiplayer', x: session.spectator ? 'spectator' : 'rider' });
     enterMobileFullscreen();
     this.endSession();
     this.stopDemo();
@@ -207,6 +214,12 @@ export class App {
   }
 
   quitToMenu(menu = 'main') {
+    const s = this.session;
+    if (s && (s.phase === 'countdown' || s.phase === 'racing')) {
+      // where players give up: share of the race distance covered
+      const done = s.focusBike ? s.focusBike.u / (this.track.length * (s.race?.laps || s.laps || 1)) : 0;
+      analytics.track('race_quit', { m: this.track.id, md: s.isNet ? 'multiplayer' : s.mode, x: s.phase, v: Math.round(Math.max(0, Math.min(1, done)) * 100) });
+    }
     if (this.session?.isNet) this.net.leaveRoom(true);
     this.ui.fade(true);
     setTimeout(() => {

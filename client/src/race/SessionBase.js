@@ -1,5 +1,6 @@
 // Shared race-session behaviour: countdown, feedback messages, finish flow, fx/audio hooks.
 import { formatTime } from '../ui/format.js';
+import { analytics } from '../core/analytics.js';
 
 export class SessionBase {
   constructor(app) {
@@ -73,6 +74,7 @@ export class SessionBase {
 
   enterFinished() {
     this.phase = 'finished';
+    if (this.isNet) analytics.track('multiplayer_finish', { m: this.app.track.id, md: 'multiplayer', v: this.me?.place || 0 });
     this.finishTimer = 0;
     this.app.chase.setMode('finish');
     this.app.audio.play('finish');

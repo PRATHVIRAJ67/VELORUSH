@@ -88,7 +88,34 @@ button, input, select { font-family: var(--body); font-weight: 700; }
 .pc-name { font-family: var(--display); font-size: 22px; }
 .pc-level { color: var(--muted); letter-spacing: 0.12em; margin: 4px 0 8px; font-size: 13px; }
 .pc-level b { color: var(--accent); font-size: 18px; }
-.pc-stats { display: flex; gap: 14px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+.pc-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+/* progress: Daily Ride card (in the profile card), map-card progress, results goal */
+.daily-card {
+  pointer-events: auto; cursor: pointer; display: block; width: 100%; margin-top: 12px; padding: 10px 12px; text-align: left; color: var(--text);
+  background: linear-gradient(135deg, rgba(255, 90, 31, 0.22), rgba(255, 193, 77, 0.1)); border: 1px solid rgba(255, 140, 60, 0.45); border-radius: 10px;
+  font: inherit; transition: transform 0.15s, filter 0.15s;
+}
+.daily-card:hover, .daily-card:focus-visible { transform: translateY(-1px); filter: brightness(1.12); outline: none; }
+.daily-card.done { background: rgba(255, 255, 255, 0.05); border-color: var(--panel-border); }
+.dc-tag { display: flex; justify-content: space-between; color: #ffc14d; font-size: 11px; letter-spacing: 0.18em; }
+.dc-tag em { font-style: normal; letter-spacing: 0.04em; color: #ffb066; }
+.daily-card b { display: block; margin: 3px 0 2px; font-size: 16px; }
+.daily-card small { display: block; color: var(--muted); font-size: 12px; }
+.mc-prog { min-height: 1.3em; margin-top: 3px; font-size: 13px; color: #ffe2a8; }
+.tt-medals { display: block; margin-top: 4px; color: #ffc14d; font-size: 13px; }
+.res-goal { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 193, 77, 0.1); border-left: 3px solid #ffc14d; }
+.res-goal.show { display: block; }
+.res-goal b { display: block; font-size: 17px; }
+.res-goal small { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+.btn.goal { border-color: rgba(255, 193, 77, 0.6); color: #ffd98a; }
+/* results: up to four actions (skip, menu, next goal, rematch) stay on one row */
+.results-panel .btn-row { flex-wrap: nowrap; gap: 10px; margin-top: 18px; }
+/* short screens: the results list scrolls, the actions stay pinned at the bottom */
+@media (max-height: 820px) {
+  .results-panel .btn-row { position: sticky; bottom: -20px; margin: 14px -20px -18px; padding: 12px 20px 18px; background: rgba(10, 16, 28, 0.97); border-radius: 0 0 14px 14px; }
+}
+.results-panel .btn-row .btn { padding: 11px 16px; font-size: 16px; white-space: nowrap; }
+.results-panel .btn-row .btn.primary { margin-left: auto; }
 .xpbar { height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 6px; overflow: hidden; }
 .xpbar > div { height: 100%; background: linear-gradient(90deg, #ffc14d, var(--accent)); width: 0; }
 .xpbar.big { height: 10px; margin: 8px 0; }
@@ -472,6 +499,11 @@ body.mobile .mode-card p { font-size: 13px; }
   body.mobile .res-table { font-size: 14px; }
   body.mobile .res-table td { padding: 3px 6px; }
   body.mobile .xp-box { margin-top: 8px; padding-top: 6px; }
+  body.mobile .res-goal { margin-top: 8px; padding: 6px 10px; }
+  body.mobile .res-goal b { font-size: 15px; }
+  body.mobile .res-goal small { font-size: 12px; }
+  body.mobile .daily-card { margin-top: 8px; padding: 7px 10px; }
+  body.mobile .daily-card b { font-size: 14px; }
   body.mobile .results-panel .btn-row { margin: 10px -16px -12px; padding: 10px 16px 12px; position: sticky; bottom: -12px; background: rgba(10, 16, 28, 0.96); }
   body.mobile .menu-list { gap: 7px; }
   body.mobile .menu-btn { padding: 7px 16px; }

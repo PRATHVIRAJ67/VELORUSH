@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { NET } from '@cyclegame/shared/constants.js';
 import { GameServer } from './GameServer.js';
+import { parseBatch } from './analytics.js';
 
 const PORT = Number(process.env.PORT) || NET.port;
 const DIST = resolve(fileURLToPath(new URL('../client/dist', import.meta.url)));
@@ -27,6 +28,20 @@ const MIME = {
 
 const http = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  // anonymous analytics (production stores them in Cloudflare Analytics Engine); dev: validate + optional log
+  if (url.pathname === '/a') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (d) => (body.length < 20000 ? (body += d) : null));
+      req.on('end', () => {
+        const batch = parseBatch(body);
+        if (batch && process.env.VR_ANALYTICS) for (const r of batch.rows) log('event', r.blobs.slice(0, 6).join(' '), r.doubles.join(' '));
+      });
+    }
+    res.writeHead(204, { 'access-control-allow-origin': '*' });
+    res.end();
+    return;
+  }
   if (url.pathname === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ...game.stats(), uptime: process.uptime() }));
