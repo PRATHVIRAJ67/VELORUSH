@@ -511,6 +511,33 @@ body.touch-on .t-btn.util { width: var(--tu-w); height: var(--tu-h); }
 body.touch-on .hud-minimap { top: var(--mm-top); width: var(--mm); height: var(--mm); }
 body.touch-on .pause-btn { top: var(--mm-top); right: calc(max(16px, env(safe-area-inset-right)) + var(--mm) + 10px); }
 
+/* install-as-app pop-up (main menu only) */
+.install-card { position: absolute; right: max(24px, env(safe-area-inset-right)); bottom: calc(24px + var(--safe-b)); display: none; z-index: 5; }
+.install-card.show { display: block; }
+.ic-panel { width: min(360px, calc(100vw - 32px)); padding: 16px 18px; animation: ccIn 0.25s ease-out; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+.ic-head { display: flex; align-items: center; gap: 14px; }
+.ic-head img { border-radius: 12px; flex: none; }
+.ic-head b { display: block; font-size: 18px; }
+.ic-head small { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ic-ios-steps { display: none; margin: 12px 0 0; font-size: 15px; line-height: 1.45; }
+.ic-ios-steps svg { vertical-align: -3px; color: #7ab8ff; }
+.install-card.ios .ic-ios-steps { display: block; }
+.ic-btns { display: flex; gap: 10px; margin-top: 14px; }
+.ic-btns .btn { flex: 1; }
+.install-btn { border-left-color: #3ddc84; }
+@media (max-height: 520px) {
+  .install-card { bottom: calc(10px + var(--safe-b)); right: max(12px, env(safe-area-inset-right)); }
+  .ic-panel { width: min(330px, calc(100vw - 24px)); padding: 12px 14px; }
+  .ic-head img { width: 40px; height: 40px; }
+  .ic-head b { font-size: 16px; }
+  .ic-head small, .ic-ios-steps { font-size: 13px; }
+  .ic-btns { margin-top: 10px; }
+}
+@media (orientation: portrait) and (max-width: 600px) {
+  .install-card { left: 16px; right: 16px; }
+  .ic-panel { width: auto; }
+}
+
 /* map cards */
 .sub-title { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 18px 0 10px; }
 .map-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 262px)); gap: 12px; }

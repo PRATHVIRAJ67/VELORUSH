@@ -22,6 +22,7 @@ const MIME = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
 };
 
 const http = createServer(async (req, res) => {

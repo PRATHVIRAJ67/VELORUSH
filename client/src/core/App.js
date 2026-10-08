@@ -16,6 +16,7 @@ import { LocalSession } from '../race/LocalSession.js';
 import { NetClient } from '../net/NetClient.js';
 import { loadSettings, loadProfile, saveSettings } from './Storage.js';
 import { enterMobileFullscreen, keepMobileFullscreen } from './device.js';
+import { Installer } from './install.js';
 
 export class App {
   constructor() {
@@ -41,6 +42,7 @@ export class App {
     this.input = new Input();
     this.audio = new AudioEngine(this.settings);
     this.ui = new UI(this);
+    this.installer = new Installer(this.ui);
     this.net = new NetClient(this);
     await this.loadTrack(this.settings.track || 'mountain', true);
 

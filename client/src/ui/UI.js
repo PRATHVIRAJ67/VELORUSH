@@ -80,7 +80,10 @@ export class UI {
     if (name === 'garage') this._openGarage();
     else this.garage?.stop();
     if (name === 'play') this._refreshPlay();
-    if (name === 'main') this.refreshProfile();
+    if (name === 'main') {
+      this.refreshProfile();
+      this.app.installer?.open(false);
+    }
     if (name === 'mp') this._refreshMp();
     this.currentMenu = name;
   }

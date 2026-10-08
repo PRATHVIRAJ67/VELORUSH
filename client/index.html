@@ -5,12 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0b1220" />
+    <!-- installable app (Android / desktop Chrome + Edge, iPhone "Add to Home Screen") -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Velo Rush" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Velo Rush</title>
     <!-- critical styles: the first paint is already the dark loader (no flash of unstyled HTML) -->
     <style>
       html, body { margin: 0; height: 100%; background: #0b1220; color: #f3f6fb; overflow: hidden; }
       /* zero specificity: the real stylesheet always wins once it has loaded */
-      :where(.screen, .touch, .controls-card) { display: none; }
+      :where(.screen, .touch, .controls-card, .install-card) { display: none; }
       #loading.show { display: block; position: fixed; inset: 0; }
     </style>
     <link rel="stylesheet" href="/src/ui/ui.css" />
@@ -38,6 +45,7 @@
               <button class="menu-btn" data-go="mp"><span>Multiplayer</span><small>Race friends with a room code</small></button>
               <button class="menu-btn" data-go="garage"><span>Garage</span><small>Bikes, colours, outfits</small></button>
               <button class="menu-btn" data-go="settings"><span>Settings</span><small>Graphics, audio, controls</small></button>
+              <button class="menu-btn install-btn" id="btn-install" style="display: none"><span>Install app</span><small>Fullscreen, no browser bars</small></button>
             </nav>
           </div>
           <div class="profile-card">
@@ -45,6 +53,20 @@
             <div class="pc-level">LEVEL <b id="pc-level">1</b></div>
             <div class="xpbar"><div id="pc-xp"></div></div>
             <div class="pc-stats" id="pc-stats"></div>
+          </div>
+          <!-- install pop-up (shown by core/install.js when the browser can install the game) -->
+          <div class="install-card" id="install-card" role="dialog" aria-label="Install Velo Rush">
+            <div class="panel ic-panel">
+              <div class="ic-head">
+                <img src="/icons/icon-192.png" alt="" width="52" height="52" />
+                <div><b>Install Velo Rush</b><small>Play fullscreen as an app, launched from its own icon.</small></div>
+              </div>
+              <p class="ic-ios-steps">Tap <b>Share</b> <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 12v8h14v-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> in Safari, then <b>Add to Home Screen</b>. Open Velo Rush from the new icon.</p>
+              <div class="ic-btns">
+                <button class="btn primary" id="ic-install">Install</button>
+                <button class="btn ghost" id="ic-later">Not now</button>
+              </div>
+            </div>
           </div>
           <div class="menu-footer">W/↑ pedal · S/↓ brake · A D steer · Shift sprint · Space boost · R reset · C camera · Esc pause</div>
         </section>
