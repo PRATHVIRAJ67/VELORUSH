@@ -36,6 +36,7 @@ export class NetClient {
     this.lostAt = 0;
     this.pingTimer = null;
     this.connecting = null;
+    this.watching = false; // receiving the public lobby list (multiplayer screen open)
   }
 
   get online() {
@@ -155,6 +156,39 @@ export class NetClient {
     }
   }
 
+  /** Server-side matchmaking: join the best public lobby, or open one (track = preferred map). */
+  async quickJoin(track) {
+    try {
+      await this.connect();
+      this.wantRoom = true;
+      this._send(C.QUICK, { track });
+      return true;
+    } catch {
+      this.app.ui.toast('Cannot reach the multiplayer server right now.', 4000);
+      return false;
+    }
+  }
+
+  /** Join a lobby from the public list (the server re-checks it and falls back to Quick Join). */
+  async joinPublic(code, track) {
+    try {
+      await this.connect();
+      this.wantRoom = true;
+      this._send(C.JOIN_PUBLIC, { code, track });
+      return true;
+    } catch {
+      this.app.ui.toast('Cannot reach the multiplayer server right now.', 4000);
+      return false;
+    }
+  }
+
+  /** Receive public lobby updates only while the multiplayer screen is open. */
+  watchPublic(on) {
+    if (this.watching === on) return;
+    this.watching = on;
+    if (this.online) this._send(C.WATCH, { on });
+  }
+
   async joinRoom(code) {
     try {
       await this.connect();
@@ -218,6 +252,7 @@ export class NetClient {
         this._ping();
         clearInterval(this.pingTimer);
         this.pingTimer = setInterval(() => this._ping(), 2000);
+        if (this.watching) this._send(C.WATCH, { on: true });
         if (hadRoom && !m.resumed) this._roomLost('Your room was closed (the server restarted).');
         else if (hadRoom) app.ui.toast('Reconnected!', 1500);
         break;
@@ -275,6 +310,12 @@ export class NetClient {
         break;
       case S.LEFT:
         this.room = null;
+        break;
+      case S.PUBLIC:
+        app.ui.renderPublicList(m.rooms);
+        break;
+      case S.MATCH:
+        app.ui.onMatch(m);
         break;
       case S.SHUTDOWN:
         app.ui.toast('Server is restarting…', 3000);

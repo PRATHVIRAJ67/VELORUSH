@@ -1,5 +1,5 @@
 // DOM UI: menus, HUD, results, lobby, garage, settings.
-import { BIKES, COLORS, OUTFITS, PHYSICS, XP, RACE_MODES } from '@shared/constants.js';
+import { BIKES, COLORS, OUTFITS, PHYSICS, XP, RACE_MODES, WEATHER } from '@shared/constants.js';
 import { formatTime, formatGap, escapeHtml } from './format.js';
 import { Minimap } from './Minimap.js';
 import { GaragePreview } from './GaragePreview.js';
@@ -85,10 +85,13 @@ export class UI {
       this.app.installer?.open(false);
     }
     if (name === 'mp') this._refreshMp();
+    // the public lobby list streams in only while this screen is open
+    this.app.net?.watchPublic(name === 'mp');
     this.currentMenu = name;
   }
 
   hideMenus() {
+    this.app.net?.watchPublic(false);
     for (const m of MENUS) $(m).classList.remove('show');
     this.garage?.stop();
     this.currentMenu = null;
@@ -348,8 +351,58 @@ export class UI {
     el.querySelector('span').textContent = text;
   }
 
+  // ---------------- public races ----------------
+  renderPublicList(rooms) {
+    const weather = (w) => (w === 'random' ? 'Random weather' : WEATHER[w]?.name || 'Clear');
+    $('pub-list').innerHTML = rooms.length
+      ? rooms
+          .map((r) => {
+            const map = MAP_LIST.find((m) => m.id === r.track);
+            return `<button class="pub-item" data-code="${escapeHtml(r.code)}">
+              <span class="pi-map">${escapeHtml(map?.name || r.track)}</span>
+              <span class="pi-meta">${weather(r.weather)} · ${r.laps} lap${r.laps > 1 ? 's' : ''} · host ${escapeHtml(r.host)}</span>
+              <span class="pi-count">${r.players}/${r.max}</span>
+              <span class="pi-state ${r.state === 'ready' ? 'ready' : ''}">${r.state === 'ready' ? 'READY' : 'WAITING'}</span>
+            </button>`;
+          })
+          .join('')
+      : '<p class="hint">No public races right now — Quick Join opens one and others can join you.</p>';
+  }
+
+  /** Quick Join / list click: one request at a time; the server picks (or opens) the lobby. */
+  async _findRace(code) {
+    if (this._matching) return;
+    this._matching = true;
+    const btn = $('btn-quick');
+    btn.disabled = true;
+    btn.textContent = 'Finding race…';
+    clearTimeout(this._matchTimer);
+    this._matchTimer = setTimeout(() => this._matchDone(), 6000); // never stuck if the reply is lost
+    const ok = code ? await this.app.net.joinPublic(code, this.app.track.id) : await this.app.net.quickJoin(this.app.track.id);
+    if (!ok) this._matchDone();
+    else if (this._matching) btn.textContent = 'Joining race…';
+  }
+
+  _matchDone() {
+    this._matching = false;
+    clearTimeout(this._matchTimer);
+    $('btn-quick').disabled = false;
+    $('btn-quick').textContent = '⚡ Quick Join';
+  }
+
+  onMatch(m) {
+    this._matchDone();
+    if (m.fallback) this.toast('Lobby is no longer available. Finding another race…', 2200);
+    setTimeout(
+      () => this.toast(m.created ? 'No public race available — created one. Waiting for riders…' : `Joined ${m.players}/${m.max}`, 3000),
+      m.fallback ? 2300 : 0,
+    );
+  }
+
   renderLobby(room, myId) {
     $('lobby-code').textContent = room.code;
+    $('lobby-kind').textContent = room.public ? '🌍 PUBLIC RACE · CODE' : 'ROOM CODE';
+    this._lobbyRoom = room;
     const isHost = room.hostId === myId;
     const humans = room.players.filter((p) => !p.bot);
     $('lobby-count').textContent = `${room.players.length}/8`;
@@ -374,12 +427,27 @@ export class UI {
     const allReady = humans.every((p) => p.ready || p.connected === false);
     const enough = room.players.length >= 2 || humans.length >= 1;
     $('btn-host-start').disabled = !(allReady && enough) || room.phase !== 'lobby';
-    $('lobby-hint').textContent =
-      room.phase !== 'lobby'
-        ? 'A race is in progress — you will join the next one.'
-        : isHost
-          ? allReady ? 'Everyone is ready. Start when you like!' : 'Waiting for all riders to be ready…'
-          : 'Waiting for the host to start the race…';
+    this._lobbyHint();
+    clearInterval(this._hintTimer);
+    if (room.startsAt) this._hintTimer = setInterval(() => this._lobbyHint(), 250);
+  }
+
+  _lobbyHint() {
+    const room = this._lobbyRoom;
+    if (!room || this.currentMenu !== 'lobby') return clearInterval(this._hintTimer);
+    const myId = this.app.net.id;
+    const isHost = room.hostId === myId;
+    const humans = room.players.filter((p) => !p.bot);
+    const allReady = humans.every((p) => p.ready || p.connected === false);
+    let hint;
+    if (room.phase !== 'lobby') hint = 'A race is in progress — you will join the next one.';
+    else if (room.startsAt) {
+      const s = Math.max(0, Math.ceil((room.startsAt - this.app.net.serverNow()) / 1000));
+      const me = room.players.find((p) => p.id === myId);
+      hint = `Race starts in ${s}s${me && !me.ready ? ' — press Ready to ride, or watch and join the next one' : ''}`;
+    } else if (room.public) hint = 'Public race — it starts by itself once 2 or more riders are ready.';
+    else hint = isHost ? (allReady ? 'Everyone is ready. Start when you like!' : 'Waiting for all riders to be ready…') : 'Waiting for the host to start the race…';
+    $('lobby-hint').textContent = hint;
   }
 
   // ---------------- garage ----------------
@@ -560,6 +628,14 @@ export class UI {
     });
     $('mp-code').addEventListener('input', () => ($('mp-code').value = $('mp-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '')));
     click('btn-create', () => app.net.createRoom({ laps: Number($('mp-laps').value), bots: Number($('mp-bots').value), skill: $('mp-skill').value, track: app.track.id }));
+    click('btn-create-public', () => app.net.createRoom({ public: true, laps: Number($('mp-laps').value), bots: Number($('mp-bots').value), skill: $('mp-skill').value, track: app.track.id }));
+    click('btn-quick', () => this._findRace());
+    $('pub-list').addEventListener('click', (e) => {
+      const item = e.target.closest('.pub-item');
+      if (!item) return;
+      app.audio.play('ui');
+      this._findRace(item.dataset.code);
+    });
     click('btn-join', () => {
       const code = $('mp-code').value.trim();
       if (code.length < 4) return this.toast('Enter the room code first');

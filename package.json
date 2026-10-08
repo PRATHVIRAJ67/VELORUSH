@@ -22,7 +22,8 @@
     "test:validate": "node tools/validate-test.mjs",
     "cf:dev": "npm run build && wrangler dev --port 8787",
     "deploy": "npm run build && wrangler deploy",
-    "build:crazygames": "npm run build:crazygames -w client"
+    "build:crazygames": "npm run build:crazygames -w client",
+    "test:public": "node tools/public-lobby-test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",

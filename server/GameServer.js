@@ -2,7 +2,7 @@
 // Hosted by the Node server (server/index.js) and the Cloudflare Durable Object (worker/index.js).
 // A socket is anything with { send(str), isOpen(), close(code, reason), terminate() }.
 import { getTrack, TRACK_IDS } from '@cyclegame/shared/tracks.js';
-import { NET, BIKE_BY_ID, OUTFITS } from '@cyclegame/shared/constants.js';
+import { NET, BIKE_BY_ID, OUTFITS, AI_SKILLS, WEATHER } from '@cyclegame/shared/constants.js';
 import { C, S, PROTOCOL_VERSION } from '@cyclegame/shared/protocol.js';
 import { Room, makeCode } from './Room.js';
 
@@ -21,6 +21,7 @@ class Client {
     this.lastMsg = 0;
     this.msgCount = 0;
     this.offlineAt = null;
+    this.lastMatchAt = 0; // matchmaking cooldown
   }
   send(type, payload = {}) {
     this.sendRaw(JSON.stringify({ t: type, ...payload }));
@@ -46,6 +47,19 @@ function cleanLook(l = {}) {
   };
 }
 
+/** Room settings from a create request (all fields validated, defaults for the rest). */
+function roomSettings(m, defaults) {
+  return {
+    laps: Math.max(1, Math.min(3, Math.round(Number(m.laps)) || defaults.laps)),
+    bots: Math.max(0, Math.min(NET.maxPlayers - 1, Math.round(Number(m.bots ?? defaults.bots)) || 0)),
+    skill: AI_SKILLS[m.skill] ? m.skill : defaults.skill,
+    weather: WEATHER[m.weather] || m.weather === 'random' ? m.weather : 'clear',
+    track: TRACK_IDS.includes(m.track) ? m.track : defaults.track,
+  };
+}
+const PUBLIC_DEFAULTS = { laps: 1, bots: 3, skill: 'medium', track: 'mountain' };
+const MAX_LISTED = 30;
+
 function applyProfile(client, m) {
   client.name = cleanName(m.name);
   client.look = cleanLook(m.look);
@@ -62,6 +76,10 @@ export class GameServer {
     this.sessions = new Map(); // session token -> Client (kept briefly after disconnect)
     this.clients = new Set();
     this.timer = null;
+    this.watchers = new Set(); // clients on the multiplayer screen (receive the public list)
+    this.publicDirty = false;
+    this.publicSentAt = 0;
+    this.publicLast = '';
   }
 
   // ---------------------------------------------------------------- socket lifecycle
@@ -97,6 +115,7 @@ export class GameServer {
   }
 
   disconnect(client) {
+    this.watchers.delete(client);
     if (!this.clients.delete(client)) return;
     client.offlineAt = Date.now();
     // only if this socket still owns the seat (a reconnect may have replaced it)
@@ -128,9 +147,11 @@ export class GameServer {
       }
       if (!room.members.size && room.emptySince && now - room.emptySince > 60000) {
         this.rooms.delete(code);
+        this.publicDirty ||= room.isPublic;
         this.log(`room ${code} closed (empty)`);
       }
     }
+    this._pushPublic(now);
     // forget sessions that have been offline too long
     for (const [k, c] of this.sessions) if (c.offlineAt && now - c.offlineAt > NET.reconnectGrace * 1000 + 5000) this.sessions.delete(k);
     // idle: nobody connected and nothing left to keep → let the host sleep
@@ -148,6 +169,86 @@ export class GameServer {
         /* ignore */
       }
     }
+  }
+
+  // ---------------------------------------------------------------- rooms + public pool
+  _createRoom(client, settings, isPublic) {
+    if (client.room) client.room.remove(client.id);
+    if (this.rooms.size > 500) {
+      client.send(S.ERROR, { msg: 'Server is full, try again later.' });
+      return null;
+    }
+    const code = makeCode(this.rooms);
+    const room = new Room(code, this.track, this.log);
+    this.rooms.set(code, room);
+    if (this.debug) room.onViolation = (r, info) => this.log('violation', r.name, JSON.stringify(info));
+    room.isPublic = isPublic;
+    room.onChange = (r) => (this.publicDirty ||= r.isPublic);
+    room.hostId = client.id;
+    room.settings = settings;
+    room.add(client);
+    this.log(`${isPublic ? 'public ' : ''}room ${code} created by ${client.name}`);
+    return room;
+  }
+
+  /** Move a client into a room (leaving any other room first). Capacity is checked by the caller. */
+  _enter(client, room) {
+    if (client.room && client.room !== room) client.room.remove(client.id);
+    if (!room.members.has(client.id)) room.add(client);
+    this.log(`${client.name} joined ${room.isPublic ? 'public ' : ''}${room.code}`);
+  }
+
+  /**
+   * Server-side matchmaking. Messages are handled one at a time, so the capacity check and the
+   * join below are atomic: two players can never both take the last seat.
+   * Preference: most riders waiting (never an emptier lobby when a fuller one has room), then the
+   * oldest lobby, then the requested map. Nothing suitable -> open a public lobby for this player.
+   */
+  _quickJoin(client, track, fallback = false) {
+    const mine = client.room;
+    if (mine?.isPublic && mine.phase === 'lobby') return this._matched(client, mine, { fallback, created: false });
+    const best = [...this.rooms.values()]
+      .filter((r) => r.listable && r !== mine)
+      .sort((a, b) => b.members.size - a.members.size || a.createdAt - b.createdAt || (b.settings.track === track) - (a.settings.track === track))[0];
+    if (best) {
+      this._enter(client, best);
+      return this._matched(client, best, { fallback, created: false });
+    }
+    const room = this._createRoom(client, roomSettings({ track }, PUBLIC_DEFAULTS), true);
+    if (room) this._matched(client, room, { fallback, created: true });
+  }
+
+  _matched(client, room, { fallback, created }) {
+    client.send(S.MATCH, { code: room.code, created, fallback, players: room.members.size, max: NET.maxPlayers });
+  }
+
+  /** One matchmaking request per second per client (no room churn, no duplicate joins). */
+  _matchCooldown(client) {
+    const now = Date.now();
+    if (now - client.lastMatchAt < 1000) return true;
+    client.lastMatchAt = now;
+    return false;
+  }
+
+  _publicList() {
+    return [...this.rooms.values()]
+      .filter((r) => r.listable)
+      .sort((a, b) => b.members.size - a.members.size || a.createdAt - b.createdAt)
+      .slice(0, MAX_LISTED)
+      .map((r) => r.publicInfo());
+  }
+
+  /** Push the public list to watchers only when it changed, at most twice a second. */
+  _pushPublic(now) {
+    if (!this.publicDirty || !this.watchers.size || now - this.publicSentAt < 500) return;
+    this.publicDirty = false;
+    this.publicSentAt = now;
+    const rooms = this._publicList();
+    const json = JSON.stringify(rooms);
+    if (json === this.publicLast) return;
+    this.publicLast = json;
+    const msg = JSON.stringify({ t: S.PUBLIC, rooms });
+    for (const c of this.watchers) c.sendRaw(msg);
   }
 
   // ---------------------------------------------------------------- protocol
@@ -182,33 +283,35 @@ export class GameServer {
           client.room?.broadcastRoom();
         }
         return;
-      case C.CREATE: {
-        if (client.room) client.room.remove(client.id);
-        if (rooms.size > 500) return client.send(S.ERROR, { msg: 'Server is full, try again later.' });
-        const code = makeCode(rooms);
-        const room = new Room(code, this.track, log);
-        rooms.set(code, room);
-        if (this.debug) room.onViolation = (r, info) => log('violation', r.name, JSON.stringify(info));
-        room.hostId = client.id;
-        room.settings = {
-          laps: Math.max(1, Math.min(3, Math.round(Number(m.laps)) || 2)),
-          bots: Math.max(0, Math.min(7, Math.round(Number(m.bots)) || 0)),
-          skill: ['easy', 'medium', 'hard', 'elite'].includes(m.skill) ? m.skill : 'medium',
-          weather: ['clear', 'cloudy', 'fog', 'rain', 'random'].includes(m.weather) ? m.weather : 'clear',
-          track: TRACK_IDS.includes(m.track) ? m.track : 'mountain',
-        };
-        room.add(client);
-        log(`room ${code} created by ${client.name}`);
+      case C.CREATE:
+        this._createRoom(client, roomSettings(m, { laps: 2, bots: 0, skill: 'medium', track: 'mountain' }), !!m.public);
+        return;
+      case C.QUICK:
+        if (this._matchCooldown(client)) return;
+        this._quickJoin(client, m.track);
+        return;
+      case C.JOIN_PUBLIC: {
+        if (this._matchCooldown(client)) return;
+        const room = rooms.get(String(m.code || '').toUpperCase().trim());
+        // re-validated here: the list the client saw may be stale (filled up, started, closed)
+        if (room && (room === client.room || room.listable)) {
+          if (room !== client.room) this._enter(client, room);
+          this._matched(client, room, { fallback: false, created: false });
+        } else this._quickJoin(client, m.track, true);
         return;
       }
+      case C.WATCH:
+        if (m.on) {
+          this.watchers.add(client);
+          client.send(S.PUBLIC, { rooms: this._publicList() });
+        } else this.watchers.delete(client);
+        return;
       case C.JOIN: {
         const code = String(m.code || '').toUpperCase().trim();
         const room = rooms.get(code);
         if (!room) return client.send(S.ERROR, { msg: `Room ${code} not found.` });
         if (room.members.size >= NET.maxPlayers) return client.send(S.ERROR, { msg: 'That room is full (8 riders).' });
-        if (client.room && client.room !== room) client.room.remove(client.id);
-        if (!room.members.has(client.id)) room.add(client);
-        log(`${client.name} joined ${code}`);
+        this._enter(client, room);
         return;
       }
       case C.LEAVE:

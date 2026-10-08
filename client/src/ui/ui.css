@@ -143,6 +143,23 @@ input[type='checkbox'] { width: 22px; height: 22px; accent-color: var(--accent);
 .hint { color: var(--muted); font-size: 14px; line-height: 1.4; }
 
 /* multiplayer */
+.public-panel { max-width: 858px; margin-bottom: 18px; }
+.pub-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.pub-head h2 { margin: 0; }
+.pub-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pub-list { display: flex; flex-direction: column; gap: 6px; max-height: 32vh; overflow-y: auto; }
+.pub-list .hint { margin: 4px 0; }
+.pub-item {
+  pointer-events: auto; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'map count state' 'meta count state';
+  align-items: center; column-gap: 14px; text-align: left; color: var(--text); padding: 9px 12px; border-radius: 10px; font: inherit;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid transparent; transition: border-color 0.15s, background 0.15s;
+}
+.pub-item:hover, .pub-item:focus-visible { border-color: var(--accent); background: rgba(255, 90, 31, 0.1); outline: none; }
+.pi-map { grid-area: map; font-family: var(--display); font-style: italic; font-size: 17px; }
+.pi-meta { grid-area: meta; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-count { grid-area: count; font-family: var(--display); font-size: 18px; }
+.pi-state { grid-area: state; font-size: 11px; letter-spacing: 0.12em; padding: 3px 7px; border-radius: 5px; background: #36415a; color: #cfe; }
+.pi-state.ready { background: var(--good); color: #052; }
 .mp-grid, .lobby-grid, .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 420px)); gap: 18px; }
 #mp-name, #mp-code { width: 100%; }
 .code-input { font-family: var(--display); font-size: 30px !important; letter-spacing: 0.35em; text-align: center; text-transform: uppercase; }

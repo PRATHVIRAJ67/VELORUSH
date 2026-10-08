@@ -69,6 +69,8 @@ The config lives in `wrangler.jsonc`. After a deploy, check the live server with
    - **Late join:** join from a third window while a race is running. You spectate and are placed in the next race.
    - **Server restart:** stop the server with Ctrl+C. Clients get a *server restarting* notice, retry automatically, and return to the Multiplayer menu if the room is gone.
 
+**Public races (no code needed):** in one window choose **Multiplayer → Quick Join** (or **Create public race**). In other windows press **Quick Join**, or click the race in the **Public races** list. Everyone lands in the same lobby. Once 2 or more riders are ready the race starts by itself: 3 s after everyone is ready, or 20 s after the second rider readies. Anyone not ready watches and joins the next race. `npm run test:public` checks the matchmaking rules on the server.
+
 Other devices on your LAN can join at `http://<your-LAN-IP>:5173`. The client connects to port 8080 on the same host automatically.
 
 ## Controls
@@ -154,6 +156,13 @@ Other devices on your LAN can join at `http://<your-LAN-IP>:5173`. The client co
   - Dead sockets are dropped by heartbeat.
   - Empty rooms are closed.
   - Message flooding is rate-limited.
+- **Public lobbies and Quick Join.** Rooms are private (joined by code) or public (listed in a global pool). The server makes every decision:
+  - A public room is listed and matchable only while it is in the lobby, has a free seat and its host is connected. A race in progress, a full room or a closed room never receives strangers.
+  - **Quick Join** picks the lobby with the most riders (then the oldest, then the player's preferred map). If none fits, it opens a new public lobby with that player as host.
+  - Joining from the list is re-checked on the server; a lobby that filled up or started meanwhile falls back to Quick Join.
+  - Messages are handled one at a time, so capacity checks are atomic: two players can't both take the last seat.
+  - The list is pushed over the WebSocket only to players on the Multiplayer screen, only when it changes, at most twice a second. There is no polling.
+  - So an idle host can't block strangers, a public lobby starts by itself once 2+ riders are ready (riders who aren't ready spectate and join the next race). Host authority, host migration, results and rematch are the same as private rooms.
   - On shutdown the server tells clients and closes cleanly.
 
 ## Speed reference

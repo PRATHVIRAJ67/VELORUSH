@@ -41,6 +41,33 @@ export class Room {
     this.finishDeadline = null;
     this.resultsAt = null;
     this.botLooks = [];
+    this.isPublic = false; // listed in the global public pool (server decides who can join)
+    this.autoStartAt = null; // public lobbies: server-scheduled start once riders are ready
+    this.pairReadyAt = null; // when a 2nd rider got ready (20 s window)
+    this.allReadyAt = null; // when everyone got ready (3 s window)
+    this.onChange = null; // GameServer hook: public pool may need refreshing
+  }
+
+  // ---------------- public pool ----------------
+  /** Joinable by strangers right now: public, waiting in the lobby, host present, seat free. */
+  get listable() {
+    if (!this.isPublic || this.phase !== 'lobby' || this.members.size >= NET.maxPlayers) return false;
+    return !!this.members.get(this.hostId)?.connected;
+  }
+
+  /** Only what the lobby browser needs — no ids, sessions or member details. */
+  publicInfo() {
+    const humans = [...this.members.values()].filter((m) => m.connected);
+    return {
+      code: this.code,
+      track: this.settings.track,
+      weather: this.settings.weather,
+      laps: this.settings.laps,
+      players: this.members.size,
+      max: NET.maxPlayers,
+      host: this.members.get(this.hostId)?.client.name || '',
+      state: humans.length && humans.every((m) => m.ready) ? 'ready' : 'waiting',
+    };
   }
 
   // ---------------- membership ----------------
@@ -133,20 +160,21 @@ export class Room {
     return this.phase === 'lobby' && humans.length >= NET.minPlayersToStart && humans.every((m) => m.ready);
   }
 
-  start(id) {
+  start(id, { readyOnly = false } = {}) {
     if (id !== this.hostId) return { error: 'Only the host can start the race' };
-    if (!this.canStart()) return { error: 'Everyone must be ready first' };
+    if (readyOnly ? this.phase !== 'lobby' : !this.canStart()) return { error: 'Everyone must be ready first' };
+    this.autoStartAt = this.pairReadyAt = this.allReadyAt = null;
     this.track = getTrack(this.settings.track);
     const race = new Race(this.track, { laps: this.settings.laps, countdown: NET.countdown, weather: pickWeather(this.settings.weather) });
     const rng = makeRng(Date.now() & 0xffffff);
     let slot = 0;
-    const humans = [...this.members.values()].filter((m) => m.connected);
+    const humans = [...this.members.values()].filter((m) => m.connected && (!readyOnly || m.ready));
+    for (const m of this.members.values()) m.spectator = !humans.includes(m);
     for (const m of humans) {
       m.spectator = false;
       const c = m.client;
       race.addRacer({ id: c.id, name: c.name, external: true, slot: slot++, bikeId: c.bikeId, look: c.look });
     }
-    for (const m of this.members.values()) if (!m.connected) m.spectator = true;
     const names = [...AI_NAMES].sort(() => rng() - 0.5);
     for (let i = 0; i < this.botCount(); i++) {
       race.addRacer({
@@ -320,6 +348,7 @@ export class Room {
       }
     }
     if (this.phase === 'results' && this.resultsAt && now - this.resultsAt > 45000) this.backToLobby(null, false);
+    if (this.isPublic && this.phase === 'lobby') this.publicAutoStart(now);
     const race = this.race;
     if (!race || (this.phase !== 'countdown' && this.phase !== 'racing')) return;
     // race clock is derived from the authoritative GO time
@@ -342,6 +371,28 @@ export class Room {
       this.broadcastSnapshot(now);
     }
     this.checkRaceEnd();
+  }
+
+  /**
+   * Public lobbies start on their own once 2+ riders are ready: 3 s after everyone is ready, or
+   * 20 s after the second rider readies (riders not ready then watch and join the next race).
+   * Uses the normal start path with the current host, so host authority is unchanged.
+   */
+  publicAutoStart(now) {
+    const connected = [...this.members.values()].filter((m) => m.connected);
+    const ready = connected.filter((m) => m.ready).length;
+    const allReady = ready >= 2 && ready === connected.length;
+    this.pairReadyAt = ready >= 2 ? (this.pairReadyAt ?? now) : null;
+    this.allReadyAt = allReady ? (this.allReadyAt ?? now) : null;
+    const at = this.pairReadyAt === null ? null : Math.min(this.pairReadyAt + 20000, allReady ? this.allReadyAt + 3000 : Infinity);
+    if (at !== this.autoStartAt) {
+      this.autoStartAt = at;
+      this.broadcastRoom();
+    }
+    if (at !== null && now >= at && this.members.get(this.hostId)) {
+      this.log(`room ${this.code}: public auto-start (${ready}/${connected.length} ready)`);
+      this.start(this.hostId, { readyOnly: true });
+    }
   }
 
   checkRaceEnd() {
@@ -412,11 +463,12 @@ export class Room {
     for (let i = 0; i < this.botCount(); i++) {
       players.push({ id: `bot${i}`, name: `AI rider ${i + 1}`, bot: true, skill: AI_SKILLS[this.settings.skill].name, look: { jersey: '#5c6b85' }, ready: true });
     }
-    return { code: this.code, hostId: this.hostId, phase: this.phase, settings: this.settings, players };
+    return { code: this.code, hostId: this.hostId, phase: this.phase, settings: this.settings, players, public: this.isPublic, startsAt: this.autoStartAt };
   }
 
   broadcastRoom() {
     this.broadcast(S.ROOM, { room: this.snapshot() });
+    this.onChange?.(this);
   }
 
   send(client, type, payload) {

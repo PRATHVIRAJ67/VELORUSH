@@ -108,17 +108,27 @@
         <section id="menu-mp" class="screen menu">
           <h1 class="screen-title">Multiplayer</h1>
           <div class="net-status" id="net-status"><i></i><span>Offline</span></div>
+          <div class="panel public-panel">
+            <div class="pub-head">
+              <h2>🌍 Public races</h2>
+              <div class="pub-actions">
+                <button class="btn primary" id="btn-quick">⚡ Quick Join</button>
+                <button class="btn" id="btn-create-public">Create public race</button>
+              </div>
+            </div>
+            <div class="pub-list" id="pub-list"><p class="hint">Connecting…</p></div>
+          </div>
           <div class="mp-grid">
             <div class="panel">
               <h2>Your name</h2>
               <input id="mp-name" maxlength="16" placeholder="Rider name" />
-              <h2>Create room</h2>
+              <h2>Create private room</h2>
               <div class="options-row compact">
                 <label>Laps <select id="mp-laps"><option>1</option><option selected>2</option><option>3</option></select></label>
                 <label>Bots <select id="mp-bots"><option>0</option><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option></select></label>
                 <label>Bot skill <select id="mp-skill"><option value="easy">Rookie</option><option value="medium" selected>Pro</option><option value="hard">Elite</option></select></label>
               </div>
-              <button class="btn primary wide" id="btn-create">Create Room</button>
+              <button class="btn primary wide" id="btn-create">Create Private Room</button>
             </div>
             <div class="panel">
               <h2>Join room</h2>
@@ -135,7 +145,7 @@
         <section id="menu-lobby" class="screen menu">
           <h1 class="screen-title">Race lobby</h1>
           <div class="lobby-code">
-            <span>ROOM CODE</span>
+            <span id="lobby-kind">ROOM CODE</span>
             <b id="lobby-code">-----</b>
             <button class="btn small" id="btn-copy-code">Copy</button>
           </div>

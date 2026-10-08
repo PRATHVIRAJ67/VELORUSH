@@ -5,8 +5,11 @@ export const PROTOCOL_VERSION = 1;
 // client -> server
 export const C = {
   HELLO: 'hello', // {v, name, look, bikeId, session}
-  CREATE: 'create', // {laps, bots, skill}
+  CREATE: 'create', // {laps, bots, skill, weather, track, public?}
   JOIN: 'join', // {code}
+  QUICK: 'quick', // {track?} server picks a public lobby (or opens one) — the client never chooses
+  JOIN_PUBLIC: 'joinpub', // {code} join a listed public lobby; falls back to QUICK if it's gone
+  WATCH: 'watch', // {on} receive the public lobby list while on the multiplayer screen
   LEAVE: 'leave',
   READY: 'ready', // {ready}
   SETTINGS: 'settings', // {laps?, bots?, skill?}
@@ -29,6 +32,8 @@ export const S = {
   RESULTS: 'results', // {rows, laps}
   PONG: 'pong', // {c, s}
   LEFT: 'left', // you left the room
+  PUBLIC: 'public', // {rooms: [{code, track, weather, laps, players, max, host, state}]} joinable public lobbies
+  MATCH: 'match', // {code, created, fallback, players, max} result of QUICK / JOIN_PUBLIC
   SHUTDOWN: 'shutdown', // server going down
 };
 
