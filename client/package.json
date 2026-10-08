@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "build:crazygames": "vite build --mode crazygames --base ./ --outDir dist-crazygames --emptyOutDir"
   },
   "dependencies": {
     "@cyclegame/shared": "1.0.0",

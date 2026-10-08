@@ -21,7 +21,8 @@
     "test:speed": "node tools/speed-test.mjs",
     "test:validate": "node tools/validate-test.mjs",
     "cf:dev": "npm run build && wrangler dev --port 8787",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "build:crazygames": "npm run build:crazygames -w client"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",

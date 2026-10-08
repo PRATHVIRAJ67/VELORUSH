@@ -5,3 +5,7 @@ track.svg
 .DS_Store
 .wrangler/
 .dev.vars
+client/dist-crazygames/
+*.zip
+velo-rush-crazygames/
+velo-rush-crazygames-flat/
