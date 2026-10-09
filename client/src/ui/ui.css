@@ -1,3 +1,10 @@
+/* Fonts bundled with the game (latin subset, SIL Open Font License): no request to Google Fonts,
+   so the menu draws sooner and portals that block outside requests still show the right type. */
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 500; font-display: swap; src: url('./fonts/rajdhani-500.woff2') format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 600; font-display: swap; src: url('./fonts/rajdhani-600.woff2') format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700; font-display: swap; src: url('./fonts/rajdhani-700.woff2') format('woff2'); }
+@font-face { font-family: 'Russo One'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/russo-one-400.woff2') format('woff2'); }
+
 :root {
   --accent: #ff5a1f;
   --accent2: #18c8ff;
@@ -89,6 +96,17 @@ button, input, select { font-family: var(--body); font-weight: 700; }
 .pc-level { color: var(--muted); letter-spacing: 0.12em; margin: 4px 0 8px; font-size: 13px; }
 .pc-level b { color: var(--accent); font-size: 18px; }
 .pc-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+/* main menu on short screens (portal frames, laptops with browser bars): compact list, controls
+   line hidden (the pre-race controls card and Settings show them) so nothing overlaps */
+@media (max-height: 820px) {
+  .menu-footer { display: none; }
+}
+@media (max-height: 720px) {
+  .tagline { margin-bottom: 3vh; }
+  .menu-list { gap: 8px; }
+  .menu-btn { padding-top: 9px; padding-bottom: 9px; }
+  .menu-btn span { font-size: 22px; }
+}
 /* progress: Daily Ride card (in the profile card), map-card progress, results goal */
 .daily-card {
   pointer-events: auto; cursor: pointer; display: block; width: 100%; margin-top: 12px; padding: 10px 12px; text-align: left; color: var(--text);

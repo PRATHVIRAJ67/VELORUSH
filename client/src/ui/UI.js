@@ -9,6 +9,7 @@ import { bestMapMedal, bestWin, medalCount, medalTargets, skillName, dailyChalle
 import { analytics } from '../core/analytics.js';
 
 const $ = (id) => document.getElementById(id);
+const AUTO_NEXT_S = 10; // seconds before the results screen starts the next race
 const MENUS = ['menu-main', 'menu-play', 'menu-mp', 'menu-lobby', 'menu-garage', 'menu-settings'];
 
 export class UI {
@@ -45,6 +46,7 @@ export class UI {
   setTrack(track) {
     this.minimap = new Minimap($('minimap'), track);
     document.querySelector('#menu-main .tagline').textContent = `Arcade cycling · ${track.name}`;
+    $('ride-now-sub').textContent = `Quick race · ${track.name}`;
   }
 
   _buildMapCards() {
@@ -73,6 +75,7 @@ export class UI {
   }
 
   showMenu(name) {
+    this._stopAutoNext();
     const id = 'menu-' + name;
     for (const m of MENUS) $(m).classList.toggle('show', m === id);
     $('hud').classList.remove('show');
@@ -95,6 +98,7 @@ export class UI {
   }
 
   hideMenus() {
+    this._stopAutoNext();
     this.app.net?.watchPublic(false);
     for (const m of MENUS) $(m).classList.remove('show');
     this.garage?.stop();
@@ -102,6 +106,7 @@ export class UI {
   }
 
   showHud() {
+    this._stopAutoNext();
     this.hideMenus();
     $('results').classList.remove('show');
     $('pause').classList.remove('show');
@@ -277,6 +282,52 @@ export class UI {
     document.body.classList.remove('racing');
     this.updateTouchVisibility();
     this.refreshResults(res, true);
+    // single player: the next race starts by itself unless the player chooses something else
+    if (!this.app.session?.isNet) this._startAutoNext();
+  }
+
+  // ---------------- auto next race (results) ----------------
+  _startAutoNext() {
+    this._stopAutoNext();
+    const btn = this.goal?.action ? $('btn-goal') : $('btn-rematch');
+    this._auto = { btn, left: AUTO_NEXT_S, kind: this.goal?.action?.kind || 'rematch' };
+    this._autoLabel();
+    this._autoTimer = setInterval(() => {
+      if (document.hidden || !this._auto) return; // paused while the tab is in the background
+      if (--this._auto.left > 0) return this._autoLabel();
+      const { btn: b, kind } = this._auto;
+      this._stopAutoNext();
+      analytics.track('auto_next', { m: this.app.track.id, x: kind });
+      this._autoFiring = true;
+      try {
+        b.click();
+      } finally {
+        this._autoFiring = false;
+      }
+    }, 1000);
+    // any real input means the player is choosing: stop counting (held race keys repeat, so skip repeats)
+    this._autoCancel = (e) => {
+      if (e.repeat || !this._auto) return;
+      analytics.track('auto_cancel', { m: this.app.track.id, x: this._auto.kind, v: this._auto.left });
+      this._stopAutoNext();
+    };
+    for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, this._autoCancel, true);
+  }
+
+  _autoLabel() {
+    const a = this._auto;
+    if (!a) return;
+    a.base ||= a.btn.textContent;
+    a.btn.textContent = `${a.base} · ${a.left}`;
+  }
+
+  _stopAutoNext() {
+    clearInterval(this._autoTimer);
+    if (this._autoCancel) for (const ev of ['pointerdown', 'keydown', 'wheel']) removeEventListener(ev, this._autoCancel, true);
+    this._autoCancel = null;
+    const a = this._auto;
+    this._auto = null;
+    if (a?.base && a.btn.textContent.startsWith(a.base)) a.btn.textContent = a.base;
   }
 
   refreshResults(res, animateXp = false) {
@@ -328,11 +379,17 @@ export class UI {
     }
     $('btn-goal').style.display = g?.action ? '' : 'none';
     if (g?.action) $('btn-goal').textContent = g.action.label;
+    if (this._auto) {
+      this._auto.base = this._auto.btn.textContent;
+      this._autoLabel();
+    }
   }
 
   // ---------------- profile ----------------
   refreshProfile() {
     const p = this.app.profile;
+    // Ride now: straight into a race on the map already loaded behind the menu
+    $('ride-now-sub').textContent = `Quick race · ${this.app.track?.name || 'Mountain Grand Prix'}`;
     $('pc-name').textContent = p.name;
     $('pc-level').textContent = p.level;
     $('pc-xp').style.width = `${(p.xp / XP.perLevel(p.level)) * 100}%`;
@@ -648,8 +705,13 @@ export class UI {
     resClick('btn-goal', () => {
       const a = this.goal?.action;
       if (!a) return;
-      analytics.track('goal_click', { m: app.track.id, md: a.opts.mode, x: a.kind });
-      app.startLocal({ ...a.opts, source: 'goal_' + a.kind });
+      const auto = this._autoFiring; // started by the results countdown, not a click
+      if (!auto) analytics.track('goal_click', { m: app.track.id, md: a.opts.mode, x: a.kind });
+      app.startLocal({ ...a.opts, source: (auto ? 'auto_' : 'goal_') + a.kind });
+    });
+    click('btn-ride-now', () => {
+      // first race against Rookies (a likely first win), then the regular Pro field
+      app.startLocal({ mode: 'quick', laps: 1, ai: 5, skill: app.profile.races ? 'medium' : 'easy', weather: '', track: app.track.id, source: 'ride_now' });
     });
     click('btn-daily', () => {
       const ch = dailyChallenge();

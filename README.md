@@ -57,6 +57,16 @@ npm run cf:dev       # optional: run the Worker locally on http://localhost:8787
 
 The config lives in `wrangler.jsonc`. After a deploy, check the live server with `SERVER_URL=wss://velo-rush.<your-subdomain>.workers.dev node tools/net-test.mjs`, and read its logs with `npx wrangler tail`.
 
+### CrazyGames build
+
+CrazyGames runs uploaded files, not the Cloudflare site, so every update needs a new upload:
+
+```bash
+npm run build:crazygames   # → client/dist-crazygames
+```
+
+This build has relative paths, connects multiplayer to the Cloudflare Worker (`client/.env.crazygames`), leaves out the install-as-app feature (portals don't allow install prompts), and tags analytics as `crazygames`. The upload box takes files, not folders or zips. Put `index.html` and everything in `assets/` into one flat folder, change `./assets/` to `./` in `index.html`, then drag every file in under **Submit new version**.
+
 ## Testing multiplayer locally
 
 1. Start the server (`npm run dev:server`) and the client (`npm run dev:client`).
@@ -185,10 +195,12 @@ Other devices on your LAN can join at `http://<your-LAN-IP>:5173`. The client co
 - **Medals**: every map and lap count has Bronze, Silver and Gold target times. They are calibrated by `node tools/medal-times.mjs`: Gold ≈ Elite AI, Silver ≈ Pro AI, Bronze ≈ a first clean ride. Rerun it if physics or tracks change. Map cards show your best medal and the hardest AI field you have beaten.
 - **Next goal**: after a race, the results screen shows how far you are from the next medal or your best, plus a one-tap action: race your ghost, try a harder field, or go to the next map.
 - **Daily Ride**: one challenge per calendar day (the same for everyone), started from the profile card on the main menu. It gives bonus XP and a streak; missing a day resets the streak.
+- **Ride now**: the first menu button starts a quick race on the map already loaded behind the menu, so there are no menus and no map load. A player's first race is against Rookies, later ones against Pros.
+- **Auto next race**: after a single-player race, the suggested action (or Rematch) counts down from 10 and starts the next race by itself. A tap, click or new key press cancels it, and it pauses while the tab is hidden. Multiplayer is unaffected.
 
 **Analytics** are anonymous: a random install id, no names and no profile data. The client (`client/src/core/analytics.js`) batches events and posts them with `sendBeacon` to `/a` on the game server. In production the Worker validates them (`server/analytics.js`) and stores them in Workers Analytics Engine (dataset `velorush_events`). The Node server only validates them; set `VR_ANALYTICS=1` to log them. Analytics failures never affect the game.
 
-Events: `session_start`, `session_pause`, `session_end`, `menu_view`, `race_start`, `race_finish`, `race_quit`, `race_again`, `goal_click`, `personal_best`, `medal`, `level_up`, `daily_complete`, `multiplayer_race`, `multiplayer_finish`.
+Events: `session_start`, `session_pause`, `session_end`, `menu_view`, `race_start`, `race_finish`, `race_quit`, `race_again`, `goal_click`, `auto_next`, `auto_cancel`, `personal_best`, `medal`, `level_up`, `daily_complete`, `multiplayer_race`, `multiplayer_finish`.
 
 Columns: `blob1` event, `blob2` map, `blob3` mode, `blob4` detail (e.g. difficulty, `daily`, the source of a race start), `blob5` platform, `blob6` build (`web`, `app`, `crazygames`), `blob7` install id, `blob8` session id, `double1` value, `double2` second value. For example, `race_finish` has place / time, `session_start` has days since first play / session number, and `race_quit` has the % of the race done.
 

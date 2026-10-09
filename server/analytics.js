@@ -4,7 +4,7 @@
 
 export const EVENTS = new Set([
   'session_start', 'session_pause', 'session_end', 'menu_view', 'race_start', 'race_finish', 'race_quit',
-  'race_again', 'personal_best', 'medal', 'level_up', 'daily_complete', 'goal_click', 'multiplayer_race', 'multiplayer_finish',
+  'race_again', 'personal_best', 'medal', 'level_up', 'daily_complete', 'goal_click', 'multiplayer_race', 'multiplayer_finish', 'auto_next', 'auto_cancel',
 ]);
 const ID = /^[a-z0-9]{8,32}$/;
 const clean = (s, n) => String(s ?? '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, n);

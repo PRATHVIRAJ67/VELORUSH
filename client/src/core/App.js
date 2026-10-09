@@ -43,7 +43,8 @@ export class App {
     this.input = new Input();
     this.audio = new AudioEngine(this.settings);
     this.ui = new UI(this);
-    this.installer = new Installer(this.ui);
+    // portals (CrazyGames) don't allow install prompts: the portal build leaves the app install out
+    if (import.meta.env.MODE !== 'crazygames') this.installer = new Installer(this.ui);
     this.net = new NetClient(this);
     analytics.init(this.settings.server, {
       platform: isMobile() ? 'mobile' : 'desktop',

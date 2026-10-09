@@ -21,9 +21,6 @@
       #loading.show { display: block; position: fixed; inset: 0; }
     </style>
     <link rel="stylesheet" href="/src/ui/ui.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app">
@@ -41,7 +38,8 @@
             <div class="logo">VELO<span>RUSH</span></div>
             <div class="tagline">Arcade cycling · Mountain Grand Prix</div>
             <nav class="menu-list">
-              <button class="menu-btn primary" data-go="play"><span>Play</span><small>Quick race · AI race · Time trial</small></button>
+              <button class="menu-btn primary ride-now" id="btn-ride-now"><span>▶ Ride now</span><small id="ride-now-sub">Quick race</small></button>
+              <button class="menu-btn" data-go="play"><span>Play</span><small>Choose mode, map and rivals</small></button>
               <button class="menu-btn" data-go="mp"><span>Multiplayer</span><small>Race friends with a room code</small></button>
               <button class="menu-btn" data-go="garage"><span>Garage</span><small>Bikes, colours, outfits</small></button>
               <button class="menu-btn" data-go="settings"><span>Settings</span><small>Graphics, audio, controls</small></button>
