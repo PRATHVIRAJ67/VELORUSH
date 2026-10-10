@@ -650,7 +650,7 @@ body.touch-on .pause-btn { top: var(--mm-top); right: calc(max(16px, env(safe-ar
 .lv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .lv-card {
   pointer-events: auto; cursor: pointer; text-align: left; position: relative; padding: 10px 10px 8px 46px; min-height: 64px;
-  background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; border-radius: 10px; color: var(--text); font: inherit;
+  background: rgba(10, 16, 28, 0.72); border: 2px solid rgba(255, 255, 255, 0.06); border-radius: 10px; color: var(--text); font: inherit; backdrop-filter: blur(4px);
 }
 .lv-card em { position: absolute; left: 8px; top: 9px; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-family: var(--display); font-size: 15px; background: rgba(255, 159, 28, 0.2); color: #ffb648; }
 .lv-card b { display: block; font-size: 15px; line-height: 1.15; }
@@ -725,7 +725,7 @@ body.stunt-mode .stunt-hud { display: block; }
 body.stunt-mode .hud-pos, body.stunt-mode .hud-standings, body.stunt-mode .hud-draft { display: none; }
 .sh-score { position: absolute; top: 14px; left: max(20px, env(safe-area-inset-left)); }
 .sh-score b { display: block; font-family: var(--display); font-style: italic; font-size: 46px; line-height: 1; text-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); font-variant-numeric: tabular-nums; }
-.sh-score small { color: var(--muted); letter-spacing: 0.2em; font-size: 12px; }
+.sh-score small { color: #dfe7f3; letter-spacing: 0.2em; font-size: 12px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); }
 .sh-score em { display: block; font-style: normal; font-family: var(--display); color: #ffd166; font-size: 20px; min-height: 1.2em; text-shadow: 0 0 12px rgba(255, 159, 28, 0.6); }
 .sh-score em:not(:empty)::after { content: ''; display: block; height: 3px; margin-top: 2px; width: calc(var(--t, 1) * 120px); background: #ff9f1c; border-radius: 2px; }
 .sh-obj { position: absolute; top: 112px; left: max(20px, env(safe-area-inset-left)); list-style: none; margin: 0; padding: 0; width: 250px; }

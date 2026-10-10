@@ -132,8 +132,8 @@ export function judgeLanding(T, stats, { pit = false, wall = false } = {}) {
 export function trickNames(j) {
   const out = [];
   const mult = ['', '', 'DOUBLE ', 'TRIPLE ', 'QUAD ', 'QUINT '];
-  if (j.back) out.push(`${mult[j.back] || j.back + 'x '}BACKFLIP`);
-  if (j.front) out.push(`${mult[j.front] || j.front + 'x '}FRONTFLIP`);
+  if (j.back) out.push(`${mult[j.back] ?? j.back + 'x '}BACKFLIP`);
+  if (j.front) out.push(`${mult[j.front] ?? j.front + 'x '}FRONTFLIP`);
   if (j.spins) out.push(`${j.spins * 360}`);
   if (j.flips && j.spins) out.push('CORKSCREW');
   if (j.style >= 0.25) out.push('NO-HANDER');

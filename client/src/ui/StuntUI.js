@@ -261,6 +261,7 @@ export class StuntUI {
 
   onSessionEnd() {
     clearTimeout(this.popT);
+    $('hud-timer').classList.remove('low');
     $('sh-pop').innerHTML = '';
   }
 
@@ -313,6 +314,8 @@ export class StuntUI {
 
   comboBroken() {
     $('sh-combo').textContent = '';
+    clearTimeout(this.popT);
+    $('sh-pop').classList.remove('show');
   }
 
   // ---------------------------------------------------------------- results

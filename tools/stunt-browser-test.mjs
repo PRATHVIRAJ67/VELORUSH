@@ -88,8 +88,14 @@ await page.evaluate((root) => (window.__sharedRoot = root), SHARED);
 const drive = await page.evaluate(async () => {
   const s = window.__app.session;
   // same module instance as the game (vite serves @shared from the shared folder)
-  const { StuntPilot } = await import(window.__sharedRoot + 'stunts/pilot.js');
+  const { StuntPilot, chooseTrick } = await import(window.__sharedRoot + 'stunts/pilot.js');
   const p = new StuntPilot(s.run, s.course.features.map((f) => ({ v: f.designV })));
+  // the solver's look-ahead restores cloned run state: keep the session's pose object attached
+  p.chooser = (pl) => {
+    const r = chooseTrick(pl);
+    s.run.bike.trick = s.pose;
+    return r;
+  };
   window.__pilot = p;
   window.__app.input.read = () => {
     const i = p.input();
@@ -103,6 +109,9 @@ await sleep(4000);
 await shot('05-L01-riding');
 const midHud = await page.evaluate(() => ({ score: document.getElementById('sh-score').textContent, obj: document.querySelectorAll('#sh-obj li').length, hudVisible: getComputedStyle(document.getElementById('stunt-hud')).display !== 'none' }));
 ok(midHud.hudVisible && midHud.obj >= 1, `stunt HUD visible with objectives (score ${midHud.score})`);
+const midAir = await page.waitForFunction(() => window.__app.session?.run.state.T.air && window.__app.session.run.bike.airborne && (Math.abs(window.__app.session.run.state.T.pitch) > 1.6 || Math.abs(window.__app.session.run.state.T.spin) > 1.6), { timeout: 60000, polling: 16 }).then(() => true).catch(() => false);
+if (midAir) await shot('05b-L01-trick-in-air');
+ok(midAir, 'a flip/spin is visible mid-air in the real session');
 await page.waitForFunction(() => document.getElementById('results').classList.contains('show'), { timeout: 120000 }).catch(() => {});
 await sleep(1200);
 await shot('06-L01-results');
