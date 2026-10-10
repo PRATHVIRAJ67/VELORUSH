@@ -15,6 +15,8 @@ import { RiderView } from '../entities/RiderView.js';
 import { LocalSession } from '../race/LocalSession.js';
 import { StuntSession } from '../race/StuntSession.js';
 import { STUNT_LEVEL_BY_ID } from '@shared/stunts/levels.js';
+import { buildCourse } from '@shared/stunts/course.js';
+import { StuntWorld } from '../world/StuntWorld.js';
 import { NetClient } from '../net/NetClient.js';
 import { loadSettings, loadProfile, saveSettings } from './Storage.js';
 import { enterMobileFullscreen, keepMobileFullscreen, isMobile } from './device.js';
@@ -122,6 +124,50 @@ export class App {
     return this._loadingTrack.finally(() => (this._loadingTrack = null));
   }
 
+  /**
+   * Stunt mode only: replace the racing world with the level's own sky course (built from the
+   * level data, identical on every client and the server). Racing maps are untouched and are
+   * rebuilt by leaveStuntWorld() when the player leaves stunt mode.
+   */
+  loadStuntWorld(level) {
+    if (this.world?.isStunt && this.world.level.id === level.id) return Promise.resolve();
+    if (this._loadingTrack) return this._loadingTrack.then(() => this.loadStuntWorld(level));
+    this._loadingTrack = (async () => {
+      const course = buildCourse(level);
+      this.ui.showLoading(`Loading L${level.n} · ${level.name}…`);
+      await new Promise((r) => setTimeout(r, 30));
+      this.loading = true;
+      this.stopDemo();
+      if (this.world) this.world.dispose();
+      this.renderer.newScene();
+      this.track = course.track;
+      this.world = new StuntWorld(this.renderer.scene, this.renderer.renderer, course);
+      await this.world.build((p, t) => this.ui.setLoading(p, t));
+      this.effects?.dispose();
+      this.effects = new Effects(this.renderer.scene);
+      const keep = this.chase ? { d: this.chase.distIndex, s: this.chase.shake } : null;
+      this.chase = new ChaseCamera(this.renderer.camera, this.world, this.track);
+      if (keep) {
+        this.chase.distIndex = keep.d;
+        this.chase.shake = keep.s;
+      }
+      this.ui.setTrack(this.track);
+      this.audio.setAmbience(this.world.theme.ambience);
+      this.applySettings();
+      this.renderer.renderer.compile(this.renderer.scene, this.renderer.camera);
+      this.loading = false;
+      this.last = performance.now();
+      this.ui.hideLoading();
+    })();
+    return this._loadingTrack.finally(() => (this._loadingTrack = null));
+  }
+
+  /** Leaving stunt mode: rebuild the racing map the player had (with the attract-mode demo). */
+  leaveStuntWorld() {
+    if (!this.world?.isStunt) return Promise.resolve();
+    return this.loadTrack(this.settings.track || 'mountain', true);
+  }
+
   applySettings() {
     const s = this.settings;
     this.renderer.setQuality(s.quality, this.world);
@@ -201,7 +247,7 @@ export class App {
     if (!level) return;
     this.audio.init();
     enterMobileFullscreen();
-    await this.loadTrack(level.map);
+    await this.loadStuntWorld(level);
     this.ui.fade(true);
     setTimeout(() => {
       try {
@@ -256,11 +302,16 @@ export class App {
     this.ui.fade(true);
     setTimeout(() => {
       this.endSession();
+      const back = () => {
+        this.audio.setMusic('menu');
+        this.ui.showMenu(menu);
+        this.ui.fade(false);
+      };
+      // leaving a stunt level: the racing map comes back exactly as it was
+      if (this.world.isStunt) return void this.leaveStuntWorld().then(back);
       this.world.weather.apply(this.world.track.def.env?.weather || 'clear');
       this.startDemo();
-      this.audio.setMusic('menu');
-      this.ui.showMenu(menu);
-      this.ui.fade(false);
+      back();
     }, 300);
   }
 

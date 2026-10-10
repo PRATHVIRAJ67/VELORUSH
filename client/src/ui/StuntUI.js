@@ -5,7 +5,7 @@ import { STUNT_BIKES, STUNT_BIKE_BY_ID, BIKE_CATEGORIES, stuntStats } from '@sha
 import { objectiveList, objectiveLabel } from '@shared/stunts/objectives.js';
 import { buildCourse } from '@shared/stunts/course.js';
 import { TIER_NAMES, UPGRADES, UPGRADE_MAX } from '@shared/stunts/config.js';
-import { getTrack } from '@shared/tracks.js';
+import { skyName } from '../world/StuntWorld.js';
 import { escapeHtml, formatTime } from './format.js';
 import { GaragePreview } from './GaragePreview.js';
 import { stuntData, levelProgress, isUnlocked, unlockText, totalStars, bikeLock, buyBike, equipBike, upgradeCost, buyUpgrade, missionList, claimMission, ACHIEVEMENTS, checkAchievements } from '../core/stuntProfile.js';
@@ -91,7 +91,7 @@ export class StuntUI {
     const p = levelProgress(sd, l.id);
     const open = isUnlocked(sd, l.id);
     const course = buildCourse(l);
-    const map = getTrack(l.map).name;
+    const map = `${skyName(l)} sky course`;
     const objs = objectiveList(l).map((o) => `<li>${escapeHtml(objectiveLabel(o))}</li>`).join('');
     const feats = {};
     for (const f of course.features) feats[f.t] = (feats[f.t] || 0) + 1;
@@ -247,7 +247,7 @@ export class StuntUI {
     sel.value = level.id;
     sel.disabled = !isHost || room.phase !== 'lobby';
     const locked = !isUnlocked(sd, level.id);
-    $('lobby-stunt-info').innerHTML = `<b>${TIER_NAMES[level.tier - 1]} · ${escapeHtml(getTrack(level.map).name)}</b><ul class="ld-obj">${objectiveList(level)
+    $('lobby-stunt-info').innerHTML = `<b>${TIER_NAMES[level.tier - 1]} · ${escapeHtml(skyName(level) + ' sky course')}</b><ul class="ld-obj">${objectiveList(level)
       .map((o) => `<li>${escapeHtml(objectiveLabel(o))}</li>`)
       .join('')}</ul>${locked ? '<p class="hint">🔓 Locked for you in solo — open for this challenge only (no permanent unlock).</p>' : ''}<p class="hint">Everyone rides the same level with base bike stats (no upgrades). Highest score wins; completing the objectives ranks first.</p>`;
   }

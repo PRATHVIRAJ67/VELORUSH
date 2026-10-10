@@ -10,6 +10,7 @@ import { StuntPilot } from '../shared/stunts/pilot.js';
 import { stuntStats, STUNT_BIKES } from '../shared/stunts/bikes.js';
 import { BIKES } from '../shared/constants.js';
 import { objectiveMet } from '../shared/stunts/objectives.js';
+import { getTrack, TRACK_IDS } from '../shared/tracks.js';
 
 let fails = 0;
 let n = 0;
@@ -156,8 +157,53 @@ ok(STUNT_LEVELS.length === 50, '50 levels');
 ok(new Set(STUNT_LEVELS.map((l) => l.id)).size === 50, 'level ids unique + stable');
 const tiers = [1, 2, 3, 4].map((t) => STUNT_LEVELS.filter((l) => l.tier === t).length);
 ok(tiers.join() === '15,15,10,10', `tiers 15/15/10/10 (${tiers.join('/')})`);
-const sig = new Set(STUNT_LEVELS.map((l) => JSON.stringify([l.map, l.from, l.features, l.objectives])));
-ok(sig.size === 50, 'no two levels share map stretch + features + objectives');
+const sig = new Set(STUNT_LEVELS.map((l) => JSON.stringify([l.features, l.objectives])));
+ok(sig.size === 50, 'no two levels share the same feature list + objectives');
+{
+  // every level rides its own sky course: own track, own route shape, own feature layout
+  const racing = new Set(TRACK_IDS.map((id) => getTrack(id)));
+  const courses = STUNT_LEVELS.map((l) => buildCourse(l));
+  ok(courses.every((c) => c.base.def.sky && !racing.has(c.base)), 'every level uses a stunt-only sky track (never a racing map)');
+  ok(new Set(courses.map((c) => c.base)).size === 50, '50 distinct course track objects');
+  // route signature: heading change + elevation sampled every 20 m over the ridden part
+  const routeSig = (c) => {
+    const out = [];
+    for (let s = c.startU; s < c.finishU; s += 20) {
+      const a = c.base.sample(s);
+      out.push(Math.round(a.head * 10), Math.round(a.y));
+    }
+    return out.join(',');
+  };
+  const routes = courses.map(routeSig);
+  ok(new Set(routes).size === 50, 'no two levels share a route (heading + elevation profile)');
+  const layouts = courses.map((c) => c.features.map((f) => `${f.t}@${Math.round(f.s0 - c.startU)}`).join('|') + '#' + c.segs.map((g) => g.h0.toFixed(1)).join(','));
+  ok(new Set(layouts).size === 50, 'no two levels share a feature layout (types, positions, heights)');
+  // shape difference: mean planar distance between any two routes (aligned at the start) is large
+  let minDiff = Infinity;
+  let pair = '';
+  const pts = courses.map((c) => {
+    const p0 = c.base.toWorld(c.startU, 0);
+    const arr = [];
+    for (let s = c.startU; s < c.startU + 220; s += 10) {
+      const w = c.base.toWorld(s, 0);
+      const r = Math.hypot(w.x - p0.x, w.z - p0.z);
+      arr.push(r, c.base.sample(s).head - c.base.sample(c.startU).head);
+    }
+    return arr;
+  });
+  for (let i = 0; i < 50; i++) for (let j = i + 1; j < 50; j++) {
+    const a = routes[i].split(',');
+    const b = routes[j].split(',');
+    let d = Math.abs(a.length - b.length);
+    for (let k = 0; k < Math.min(a.length, b.length); k++) d += a[k] !== b[k] ? 1 : 0;
+    if (d < minDiff) {
+      minDiff = d;
+      pair = `${STUNT_LEVELS[i].id}/${STUNT_LEVELS[j].id}`;
+    }
+  }
+  ok(minDiff >= 10, `closest pair of routes still differs in ${minDiff} of their 20 m samples (${pair})`);
+  void pts;
+}
 ok(STUNT_BIKES.length === 34 && STUNT_BIKES.slice(0, 4).every((b, i) => b.id === BIKES[i].id && b.power === BIKES[i].power), '34 bikes, original four first and unchanged');
 ok(STUNT_BIKES.every((b) => b.power <= 1.06), 'every stunt bike stays inside the racing power envelope (<= 1.06)');
 {

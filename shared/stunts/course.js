@@ -7,7 +7,7 @@
 // is put on the next stretch of road that is straight enough, outside tunnels/bridges and
 // clear of the map's overhead structures (gantries, checkpoint arches) and racing ramps/pads.
 
-import { getTrack } from '../tracks.js';
+import { getSkyTrack, SKY_START } from './skytrack.js';
 import { FLAG } from '../track.js';
 import { createBike, stepBike, makeStats } from '../physics.js';
 import { PHYSICS } from '../constants.js';
@@ -28,6 +28,12 @@ function mapMask(track) {
   if (maskCache.has(track.id)) return maskCache.get(track.id);
   const n = track.count;
   const ex = new Uint8Array(n);
+  // sky courses: nothing overhead, no racing ramps/pads — the whole road is free
+  if (track.def.sky) {
+    const res = { ex, summit: null };
+    maskCache.set(track.id, res);
+    return res;
+  }
   const mark = (s0, s1) => {
     for (let s = Math.floor(s0); s <= Math.ceil(s1); s++) ex[((Math.floor(s / track.ds) % n) + n) % n] = 1;
   };
@@ -187,6 +193,12 @@ function expand(f, s, track) {
   return { segs, pits, obstacles, pads, lipS, len: e - s, post, jump, d, w };
 }
 
+/** Length of a feature along the road + the clear landing room it needs (route generator). */
+export function featureSpan(spec, limit) {
+  const g = expand(spec, 0, { limit });
+  return { len: g.len, post: g.post };
+}
+
 // ------------------------------------------------------------------ course object
 function makeCourse(level, base) {
   const course = {
@@ -200,7 +212,7 @@ function makeCourse(level, base) {
     targets: [],
     features: [],
     gates: [],
-    startU: level.from,
+    startU: SKY_START,
     finishU: 0,
     /** Extra ground height of the stunt features at (s, d). */
     heightAt(s, d) {
@@ -295,11 +307,11 @@ const courseCache = new Map();
 /** Build (once) the course for a level definition. */
 export function buildCourse(level) {
   if (courseCache.has(level.id)) return courseCache.get(level.id);
-  const base = getTrack(level.map);
+  const base = getSkyTrack(level, featureSpan);
   const mask = mapMask(base);
   const course = makeCourse(level, base);
-  let cursor = level.from + (level.runup ?? 70);
-  let lastGateU = level.from;
+  let cursor = SKY_START + (level.runup ?? 70);
+  let lastGateU = SKY_START;
   let lastJump = null;
   const problems = [];
   for (let fi = 0; fi < level.features.length; fi++) {
@@ -374,7 +386,7 @@ export function buildCourse(level) {
       if (!hit) break;
       gu = hit.s0 - 26;
     }
-    if (wantGate && gu - lastGateU > 60 && gu > level.from + 30) {
+    if (wantGate && gu - lastGateU > 60 && gu > SKY_START + 30) {
       course.gates.push({ u: gu, i: course.gates.length, feature: feat.i });
       lastGateU = gu;
     }

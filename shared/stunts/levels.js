@@ -21,7 +21,7 @@ level({
   from: 440,
   features: [{ t: 'kick', h: 0.8, w: 6 }, { t: 'kick', h: 1.0, w: 6 }, { t: 'table', h: 1.2, top: 6, w: 7 }],
   objectives: { air: 0.5 },
-  stars: [3600, 4900],
+  stars: [4000, 5100],
   reward: 100,
   tip: 'Hold PEDAL into the ramp. Landing straight is all it takes.',
 });
@@ -32,7 +32,7 @@ level({
   from: 80,
   features: [{ t: 'table', h: 1.2, top: 5 }, { t: 'table', h: 1.5, top: 7 }, { t: 'table', h: 1.8, top: 9 }],
   objectives: { airTotal: 2.0 },
-  stars: [4400, 5300],
+  stars: [4200, 5200],
   reward: 120,
 });
 level({
@@ -42,7 +42,7 @@ level({
   from: 640,
   features: [{ t: 'kick', h: 1.0, w: 6 }, { t: 'gap', h: 1.2, gap: 4 }, { t: 'gap', h: 1.4, gap: 6 }],
   objectives: { dist: 14 },
-  stars: [3300, 4800],
+  stars: [3800, 5000],
   reward: 140,
 });
 level({
@@ -52,7 +52,7 @@ level({
   from: 120,
   features: [{ t: 'deck', h: 2.0, deck: 14 }, { t: 'deck', h: 2.4, deck: 14 }],
   objectives: { backflips: 1 },
-  stars: [2600, 3200],
+  stars: [2800, 3900],
   reward: 160,
   tip: 'In the air: release, then hold BRAKE (S) to flip. Let go before you land.',
 });
@@ -74,7 +74,7 @@ level({
   from: 2160,
   features: [{ t: 'kick', h: 1.2 }, { t: 'ring', f: 0.45 }, { t: 'kick', h: 1.4 }, { t: 'ring', f: 0.5 }, { t: 'table', h: 1.2, top: 6 }],
   objectives: { rings: 2 },
-  stars: [5500, 6200],
+  stars: [5000, 5600],
   reward: 180,
   tip: 'Rings sit on the line of a jump taken at the speed shown on the HUD.',
 });
@@ -107,7 +107,7 @@ level({
   time: 75,
   features: [{ t: 'rollers', n: 4 }, { t: 'table', h: 1.4, top: 6 }, { t: 'rollers', n: 4, h: 0.65 }, { t: 'table', h: 1.6, top: 8 }],
   objectives: { airTotal: 2.5 },
-  stars: [7200, 7500],
+  stars: [8400, 8700],
   reward: 200,
 });
 level({
@@ -117,7 +117,7 @@ level({
   from: 1240,
   features: [{ t: 'deck', h: 2.0, deck: 10 }, { t: 'kick', h: 1.5 }],
   objectives: { style: 0.5 },
-  stars: [2400, 2700],
+  stars: [2700, 3200],
   reward: 210,
   tip: 'Release SPRINT before touchdown or you crash.',
 });
@@ -128,7 +128,7 @@ level({
   from: 1560,
   features: [{ t: 'deck', h: 2.4, deck: 12 }, { t: 'table', h: 1.6, top: 7 }, { t: 'deck', h: 2.6, deck: 12 }],
   objectives: { frontflips: 1 },
-  stars: [4800, 6600],
+  stars: [4700, 7200],
   reward: 220,
 });
 level({
@@ -139,7 +139,7 @@ level({
   runup: 40,
   features: [{ t: 'kick', h: 1.0, gap: 8 }, { t: 'kick', h: 1.0, gap: 10 }, { t: 'kick', h: 1.1, gap: 10 }],
   objectives: { combo: 3 },
-  stars: [3900, 5100],
+  stars: [3700, 5000],
   reward: 230,
 });
 level({
@@ -149,7 +149,7 @@ level({
   from: 2300,
   features: [{ t: 'gap', h: 1.3, gap: 6 }, { t: 'gap', h: 1.5, gap: 9 }, { t: 'kick', h: 1.6 }],
   objectives: { dist: 26 },
-  stars: [4500, 5300],
+  stars: [4200, 5200],
   reward: 240,
 });
 level({
@@ -159,7 +159,7 @@ level({
   from: 900,
   features: [{ t: 'table', h: 1.2, top: 6 }, { t: 'kick', h: 1.0 }, { t: 'table', h: 1.4, top: 7 }, { t: 'kick', h: 1.2 }],
   objectives: { perfect: 3 },
-  stars: [5200, 5700],
+  stars: [6000, 7800],
   reward: 250,
 });
 level({
@@ -169,7 +169,7 @@ level({
   from: 450,
   features: [{ t: 'deck', h: 2.2, deck: 10 }, { t: 'kick', h: 1.2 }, { t: 'table', h: 1.5, top: 7 }, { t: 'deck', h: 2.4, deck: 10 }],
   objectives: { backflips: 1, spins: 1, score: 3000 },
-  stars: [4100, 5500],
+  stars: [5300, 6900],
   reward: 300,
 });
 
@@ -181,7 +181,7 @@ level({
   from: 150,
   features: [{ t: 'deck', h: 3.0, deck: 14, lip: 0.9, v: 22 }, { t: 'deck', h: 3.2, deck: 14, lip: 0.9, v: 22 }],
   objectives: { flipJump: 2 },
-  stars: [2800, 4000],
+  stars: [3200, 4800],
   reward: 320,
 });
 level({
@@ -191,7 +191,7 @@ level({
   from: 80,
   features: [{ t: 'step', h: 1.2, gap: 4, h2: 1.6, deck: 10 }, { t: 'kick', h: 1.0 }, { t: 'target', len: 7 }, { t: 'step', h: 1.4, gap: 5, h2: 2.0, deck: 10 }, { t: 'kick', h: 1.2 }, { t: 'target', len: 7 }],
   objectives: { targets: 2 },
-  stars: [4700, 6100],
+  stars: [7300, 9500],
   reward: 330,
 });
 level({
@@ -202,7 +202,7 @@ level({
   runup: 60,
   features: [{ t: 'kick', h: 1.0 }, { t: 'ring', f: 0.5 }, { t: 'kick', h: 1.3 }, { t: 'ring', f: 0.4 }, { t: 'kick', h: 1.5 }, { t: 'ring', f: 0.55 }, { t: 'table', h: 1.6, top: 6 }, { t: 'ring', f: 0.5 }],
   objectives: { rings: 4 },
-  stars: [5500, 6600],
+  stars: [8100, 10000],
   reward: 340,
 });
 level({
@@ -212,7 +212,7 @@ level({
   from: 1560,
   features: [{ t: 'deck', h: 2.8, deck: 12, lip: 0.9, v: 21 }, { t: 'deck', h: 3.0, deck: 12, lip: 0.9, v: 21 }, { t: 'kick', h: 1.6 }],
   objectives: { corkscrew: 1 },
-  stars: [4800, 6900],
+  stars: [4800, 6800],
   reward: 350,
 });
 level({
@@ -222,7 +222,7 @@ level({
   from: 560,
   features: [{ t: 'barrels', n: 3, space: 20, offset: 1.5, lane: 2.4 }, { t: 'gap', h: 1.2, gap: 5 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'barrels', n: 2, space: 20, offset: 1.5, lane: 2.4 }],
   objectives: { clean: 1, dist: 12 },
-  stars: [2700, 3100],
+  stars: [2200, 3200],
   reward: 360,
 });
 level({
@@ -232,7 +232,7 @@ level({
   from: 720,
   features: [{ t: 'kick', h: 1.0, gap: 10 }, { t: 'kick', h: 1.1, gap: 12 }, { t: 'table', h: 1.3, top: 5, gap: 12 }, { t: 'kick', h: 1.2, gap: 12 }, { t: 'kick', h: 1.3, gap: 12 }],
   objectives: { combo: 4 },
-  stars: [5400, 9600],
+  stars: [8000, 12300],
   reward: 370,
 });
 level({
@@ -242,7 +242,7 @@ level({
   from: 470,
   features: [{ t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 23 }, { t: 'kick', h: 1.6 }],
   objectives: { spinJump: 2 },
-  stars: [2800, 3200],
+  stars: [2900, 3900],
   reward: 380,
 });
 level({
@@ -254,7 +254,7 @@ level({
   time: 45,
   features: [{ t: 'pad', d: 0 }, { t: 'gap', h: 1.2, gap: 6 }, { t: 'pad', d: 0 }, { t: 'gap', h: 1.4, gap: 8 }],
   objectives: { time: 30, dist: 16 },
-  stars: [2200, 2800],
+  stars: [2500, 3400],
   reward: 390,
 });
 level({
@@ -264,7 +264,7 @@ level({
   from: 40,
   features: [{ t: 'pad', d: 0 }, { t: 'gap', h: 1.4, gap: 9 }, { t: 'pad', d: 0 }, { t: 'gap', h: 1.6, gap: 11 }, { t: 'pad', d: 0 }, { t: 'gap', h: 1.8, gap: 13 }],
   objectives: { dist: 24, clean: 2 },
-  stars: [3300, 4200],
+  stars: [3600, 4700],
   reward: 400,
 });
 level({
@@ -274,7 +274,7 @@ level({
   from: 900,
   features: [{ t: 'deck', h: 2.4, deck: 10, v: 18 }, { t: 'deck', h: 2.6, deck: 10, v: 20 }, { t: 'kick', h: 1.5 }],
   objectives: { frontflips: 3 },
-  stars: [3800, 4900],
+  stars: [4500, 7200],
   reward: 410,
 });
 level({
@@ -284,7 +284,7 @@ level({
   from: 720,
   features: [{ t: 'kick', h: 1.1 }, { t: 'target', len: 7 }, { t: 'table', h: 1.4, top: 4 }, { t: 'target', len: 6 }, { t: 'kick', h: 1.4 }, { t: 'target', len: 5 }],
   objectives: { targets: 3 },
-  stars: [4400, 5200],
+  stars: [5600, 6700],
   reward: 420,
 });
 level({
@@ -294,7 +294,7 @@ level({
   from: 1700,
   features: [{ t: 'deck', h: 2.6, deck: 10 }, { t: 'kick', h: 1.6 }, { t: 'deck', h: 2.8, deck: 10 }, { t: 'kick', h: 1.8 }, { t: 'kick', h: 1.6 }, { t: 'deck', h: 3.0, deck: 10 }],
   objectives: { airTotal: 8 },
-  stars: [9000, 14900],
+  stars: [10500, 16200],
   reward: 430,
 });
 level({
@@ -304,7 +304,7 @@ level({
   from: 300,
   features: [{ t: 'deck', h: 2.8, deck: 12, lip: 0.9, v: 21 }, { t: 'table', h: 1.6, top: 8 }, { t: 'deck', h: 3.0, deck: 12, lip: 0.9, v: 21 }],
   objectives: { style: 1.0, score: 5000 },
-  stars: [5500, 7500],
+  stars: [5500, 6000],
   reward: 440,
 });
 level({
@@ -314,7 +314,7 @@ level({
   from: 560,
   features: [{ t: 'rollers', n: 3 }, { t: 'table', h: 1.3, top: 6 }, { t: 'rollers', n: 3, h: 0.6 }, { t: 'table', h: 1.5, top: 6 }],
   objectives: { perfect: 3, airTotal: 2.5 },
-  stars: [9700, 10000],
+  stars: [8500, 10000],
   reward: 450,
 });
 level({
@@ -324,7 +324,7 @@ level({
   from: 900,
   features: [{ t: 'deck', h: 3.0, deck: 10, lip: 0.9, v: 21 }, { t: 'deck', h: 3.2, deck: 10, lip: 0.9, v: 23 }, { t: 'kick', h: 1.4 }],
   objectives: { flipJump: 2, spins: 1, perfect: 2 },
-  stars: [3600, 4800],
+  stars: [4800, 6600],
   reward: 500,
 });
 
@@ -335,9 +335,9 @@ level({
   map: 'canyon',
   from: 20,
   runup: 60,
-  features: [{ t: 'deck', h: 5.5, deck: 10, lip: 1.5, v: 28 }, { t: 'deck', h: 5.5, deck: 10, lip: 1.5, v: 28 }],
+  features: [{ t: 'deck', slope: -0.12, h: 5.5, deck: 10, lip: 1.5, v: 28 }, { t: 'deck', slope: -0.12, h: 5.5, deck: 10, lip: 1.5, v: 28 }],
   objectives: { flipJump: 3 },
-  stars: [3000, 5800],
+  stars: [3900, 7500],
   reward: 550,
 });
 level({
@@ -347,7 +347,7 @@ level({
   from: 60,
   features: [{ t: 'kick', h: 1.0 }, { t: 'target', len: 5 }, { t: 'kick', h: 1.2 }, { t: 'target', len: 5 }, { t: 'table', h: 1.4, top: 5 }, { t: 'target', len: 4.5 }, { t: 'kick', h: 1.3 }, { t: 'target', len: 4.5 }],
   objectives: { targets: 4 },
-  stars: [5700, 7300],
+  stars: [8400, 11100],
   reward: 560,
 });
 level({
@@ -362,7 +362,7 @@ level({
     { t: 'kick', h: 1.4 }, { t: 'ring', f: 0.4 }, { t: 'ring', f: 0.75 },
   ],
   objectives: { rings: 6 },
-  stars: [6000, 7200],
+  stars: [9200, 11600],
   reward: 570,
 });
 level({
@@ -373,7 +373,7 @@ level({
   runup: 60,
   features: [{ t: 'gap', h: 1.3, gap: 8 }, { t: 'gap', h: 1.5, gap: 10 }, { t: 'gap', h: 1.6, gap: 11 }, { t: 'gap', h: 1.7, gap: 12 }],
   objectives: { clean: 0, dist: 28 },
-  stars: [6100, 9700],
+  stars: [5300, 8000],
   reward: 580,
 });
 level({
@@ -383,7 +383,7 @@ level({
   from: 1560,
   features: [{ t: 'deck', h: 3.0, deck: 10, lip: 0.9, v: 21 }, { t: 'kick', h: 1.8, gap: 14 }, { t: 'deck', h: 3.0, deck: 10, lip: 0.9, v: 21, gap: 14 }, { t: 'kick', h: 1.8, gap: 14 }, { t: 'deck', h: 3.2, deck: 10, lip: 0.9, v: 21, gap: 14 }],
   objectives: { corkscrew: 3, combo: 3 },
-  stars: [8200, 12300],
+  stars: [10000, 16100],
   reward: 600,
 });
 level({
@@ -394,17 +394,17 @@ level({
   time: 80,
   features: [{ t: 'barrels', n: 5, space: 19, offset: 1.5, lane: 2.4 }, { t: 'kick', h: 1.2 }, { t: 'barrels', n: 4, space: 19, offset: 1.6, lane: 2.4 }, { t: 'table', h: 1.4, top: 6 }],
   objectives: { time: 68, clean: 0 },
-  stars: [2600, 4200],
+  stars: [2000, 2900],
   reward: 610,
 });
 level({
   name: 'The Big Drop',
-  desc: 'A mega deck off the steepest alpine slope: 1.8 seconds of air in one jump.',
+  desc: 'A mega deck off the steepest alpine slope: 1.6 seconds of air in one jump.',
   map: 'alpine',
   from: 1780,
-  features: [{ t: 'deck', h: 5.0, deck: 12, lip: 1.4, v: 26 }, { t: 'kick', h: 1.6 }],
-  objectives: { air: 1.8 },
-  stars: [4100, 7900],
+  features: [{ t: 'deck', slope: -0.15, h: 5.0, deck: 12, lip: 1.4, v: 26 }, { t: 'kick', h: 1.6 }],
+  objectives: { air: 1.6 },
+  stars: [2900, 5100],
   reward: 620,
 });
 level({
@@ -414,7 +414,7 @@ level({
   from: 900,
   features: [{ t: 'deck', h: 2.8, deck: 10, lip: 0.9, v: 21 }, { t: 'deck', h: 3.0, deck: 10, lip: 0.9, v: 22 }, { t: 'kick', h: 1.6 }],
   objectives: { spins: 5 },
-  stars: [3500, 4100],
+  stars: [5000, 6100],
   reward: 640,
 });
 level({
@@ -424,7 +424,7 @@ level({
   from: 80,
   features: [{ t: 'step', h: 1.2, gap: 4, h2: 1.6, deck: 8 }, { t: 'step', h: 1.4, gap: 5, h2: 1.9, deck: 8 }, { t: 'step', h: 1.6, gap: 6, h2: 2.2, deck: 8 }, { t: 'step', h: 1.8, gap: 6, h2: 2.5, deck: 8 }],
   objectives: { perfect: 4, clean: 1 },
-  stars: [4500, 6600],
+  stars: [6000, 9700],
   reward: 650,
 });
 level({
@@ -434,7 +434,7 @@ level({
   from: 1000,
   features: [{ t: 'kick', h: 1.2 }, { t: 'ring', f: 0.5 }, { t: 'kick', h: 1.3, v: 18 }, { t: 'target', len: 6 }, { t: 'deck', h: 3.6, deck: 10, lip: 1.0, v: 24 }, { t: 'kick', h: 1.4 }, { t: 'ring', f: 0.5 }],
   objectives: { rings: 2, targets: 1, flipJump: 2, score: 9000 },
-  stars: [9500, 10000],
+  stars: [9900, 11900],
   reward: 700,
 });
 
@@ -445,8 +445,8 @@ level({
   map: 'canyon',
   from: 1480,
   features: [{ t: 'deck', h: 6.0, deck: 12, lip: 1.5, v: 29 }, { t: 'deck', h: 5.5, deck: 12, lip: 1.5, v: 28 }],
-  objectives: { air: 1.9, flips: 4 },
-  stars: [4600, 9500],
+  objectives: { air: 1.8, flips: 4 },
+  stars: [3900, 8000],
   reward: 750,
 });
 level({
@@ -454,7 +454,8 @@ level({
   desc: 'A triple flip off the alpine mega deck, then a corkscrew.',
   map: 'alpine',
   from: 2560,
-  features: [{ t: 'deck', h: 6.0, deck: 12, lip: 1.5, v: 29 }, { t: 'kick', h: 1.8 }],
+  runup: 180,
+  features: [{ t: 'deck', slope: -0.16, h: 6.0, deck: 12, lip: 1.5, v: 29 }, { t: 'kick', h: 1.8 }],
   objectives: { flipJump: 3, corkscrew: 1 },
   stars: [3300, 6300],
   reward: 800,
@@ -464,9 +465,9 @@ level({
   desc: 'Three full spins in one jump: the 1080, on the mountain descent.',
   map: 'mountain',
   from: 920,
-  features: [{ t: 'deck', h: 4.0, deck: 10, lip: 1.2, v: 24 }, { t: 'deck', h: 5.5, deck: 10, lip: 1.5, v: 28 }],
+  features: [{ t: 'deck', h: 4.0, deck: 10, lip: 1.2, v: 24 }, { t: 'deck', slope: -0.12, h: 5.5, deck: 10, lip: 1.5, v: 28 }],
   objectives: { spinJump: 3 },
-  stars: [2800, 3300],
+  stars: [3400, 4100],
   reward: 820,
 });
 level({
@@ -478,7 +479,7 @@ level({
   runout: 12,
   features: [{ t: 'kick', h: 1.0, gap: 6 }, { t: 'target', len: 3.5 }, { t: 'kick', h: 1.1, gap: 4 }, { t: 'target', len: 3.5 }, { t: 'kick', h: 1.1, gap: 4 }, { t: 'target', len: 3.5 }],
   objectives: { targets: 3, perfect: 3 },
-  stars: [4400, 6000],
+  stars: [5500, 7600],
   reward: 840,
 });
 level({
@@ -493,17 +494,17 @@ level({
     { t: 'kick', h: 1.5 }, { t: 'ring', f: 0.4 }, { t: 'ring', f: 0.75 },
   ],
   objectives: { rings: 8, clean: 1 },
-  stars: [10600, 14200],
+  stars: [8300, 11400],
   reward: 860,
 });
 level({
   name: 'No Hands Hero',
-  desc: 'A 1.4 s no-hander and a x2 combo on the canyon descent.',
+  desc: 'A 1.3 s no-hander and a x2 combo on the canyon descent.',
   map: 'canyon',
   from: 600,
   features: [{ t: 'deck', h: 4.5, deck: 10, lip: 1.2, v: 26 }, { t: 'kick', h: 1.6, gap: 12 }, { t: 'deck', h: 4.5, deck: 10, lip: 1.2, v: 26, gap: 12 }],
-  objectives: { style: 1.4, combo: 3 },
-  stars: [4800, 7700],
+  objectives: { style: 1.3, combo: 3 },
+  stars: [5100, 8700],
   reward: 880,
 });
 level({
@@ -514,7 +515,7 @@ level({
   time: 70,
   features: [{ t: 'pad', d: 0 }, { t: 'gap', h: 1.4, gap: 10 }, { t: 'pad', d: 0 }, { t: 'gap', h: 1.6, gap: 13 }, { t: 'pad', d: 0 }, { t: 'gap', h: 1.8, gap: 15 }, { t: 'kick', h: 1.6 }],
   objectives: { time: 50, dist: 28 },
-  stars: [4500, 7000],
+  stars: [4100, 6800],
   reward: 900,
 });
 level({
@@ -522,9 +523,9 @@ level({
   desc: 'Barrels, kickers, a gap and rollers in the pines with a x2 combo.',
   map: 'forest',
   from: 560,
-  features: [{ t: 'barrels', n: 3, space: 14, offset: 1.5, lane: 2.3 }, { t: 'kick', h: 1.1, gap: 10 }, { t: 'kick', h: 1.2, gap: 10 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'rollers', n: 3 }, { t: 'table', h: 1.4, top: 6 }],
+  features: [{ t: 'barrels', n: 3, space: 18, offset: 1.5, lane: 2.4 }, { t: 'kick', h: 1.1, gap: 10 }, { t: 'kick', h: 1.2, gap: 10 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'rollers', n: 3 }, { t: 'table', h: 1.4, top: 6 }],
   objectives: { combo: 3, clean: 1 },
-  stars: [6300, 9900],
+  stars: [9200, 14000],
   reward: 920,
 });
 level({
@@ -534,12 +535,12 @@ level({
   from: 150,
   features: [
     { t: 'gap', h: 1.4, gap: 9 }, { t: 'barrels', n: 3, space: 20, offset: 2, lane: 2.6 },
-    { t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 24 }, { t: 'ring', f: 0.45 },
+    { t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 24, gap: 80 }, { t: 'ring', f: 0.45 },
     { t: 'kick', h: 1.4, v: 18 }, { t: 'target', len: 6 },
     { t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 24 },
   ],
   objectives: { flipJump: 2, rings: 1, targets: 1, clean: 1, score: 8000 },
-  stars: [8600, 10500],
+  stars: [8800, 10500],
   reward: 950,
 });
 level({
@@ -555,7 +556,7 @@ level({
     { t: 'deck', h: 4.0, deck: 10, lip: 1.1, v: 25, gap: 14 },
   ],
   objectives: { flipJump: 2, spinJump: 2, corkscrew: 2, clean: 0, score: 14000 },
-  stars: [15000, 17500],
+  stars: [14900, 15200],
   reward: 1200,
 });
 

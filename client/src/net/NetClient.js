@@ -4,6 +4,7 @@ import { NET } from '@shared/constants.js';
 import { NetSession } from '../race/NetSession.js';
 import { StuntSession } from '../race/StuntSession.js';
 import { stuntData } from '../core/stuntProfile.js';
+import { STUNT_LEVEL_BY_ID } from '@shared/stunts/levels.js';
 
 const SESSION_KEY = 'velorush.session';
 
@@ -286,7 +287,7 @@ export class NetClient {
         this.room = m.room;
         if (!this.wantRoom) break;
         // preload the host's map while waiting in the lobby
-        if (!app.session && m.room.settings.track && m.room.settings.track !== app.track.id) {
+        if (!app.session && m.room.settings.mode !== 'stunt' && m.room.settings.track && m.room.settings.track !== app.track.id) {
           app.loadTrack(m.room.settings.track).then(() => app.ui.currentMenu !== 'lobby' && app.ui.showMenu('lobby'));
         }
         if (!app.session) {
@@ -302,7 +303,8 @@ export class NetClient {
             app.startSession(m.mode === 'stunt' ? new StuntSession(app, { levelId: m.level }, this, m) : new NetSession(app, this, m));
             app.ui.renderLobbyTrack?.();
           };
-          if (m.track && m.track !== app.track.id) app.loadTrack(m.track).then(begin);
+          if (m.mode === 'stunt') app.loadStuntWorld(STUNT_LEVEL_BY_ID[m.level]).then(begin);
+          else if (m.track && m.track !== app.track.id) app.loadTrack(m.track).then(begin);
           else begin();
         }
         break;

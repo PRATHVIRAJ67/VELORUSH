@@ -13,7 +13,7 @@ import { objectiveProgress, starsFor } from '@shared/stunts/objectives.js';
 import { STUNT_BIKE_BY_ID } from '@shared/stunts/bikes.js';
 import { NITRO } from '@shared/stunts/config.js';
 import { RiderView } from '../entities/RiderView.js';
-import { StuntCourseView } from '../world/StuntCourseView.js';
+import { skyName } from '../world/StuntWorld.js';
 import { SessionBase } from './SessionBase.js';
 import { addXp } from '../core/Storage.js';
 import { stuntData, recordSoloRun, addRunStats, checkAchievements, isUnlocked, recordChallengeCoins, missionList } from '../core/stuntProfile.js';
@@ -37,15 +37,15 @@ export class StuntSession extends SessionBase {
     this.menuAfter = net ? 'mp' : 'stunt';
     const sd = stuntData(app.profile);
     const scene = app.renderer.scene;
-    const weather = app.track.def.env?.weather || 'clear';
-    app.world.weather.apply(weather);
-    this.courseView = new StuntCourseView(scene, this.course);
+    // the sky course itself is part of the stunt world (built by App.loadStuntWorld)
+    this.world = app.world;
     this.remotes = new Map();
     this.sendAcc = 0;
     this.doneSent = false;
     this.serverRows = null;
     this.events = [];
-    this.pose = { pitch: 0, spin: 0 };
+    this.pose = { pitch: 0, spin: 0, drop: 0 };
+    this.dropV = 0;
     this.fall = 0;
     let slot = 0;
     let bikeId = sd.bikeId;
@@ -86,6 +86,7 @@ export class StuntSession extends SessionBase {
       d: LANES[slot % LANES.length],
     });
     this.run.bike.trick = this.pose;
+    if (this.world.isStunt) this.world.run = this.spectator ? null : this.run;
     const look = { ...this.profileLook(), bikeId: this.bikeId };
     this.view = new RiderView(scene, this.course.track, { name: app.profile.name, look, isLocal: true, night: app.world.theme.night });
     if (this.spectator) this.view.setVisible(false);
@@ -136,7 +137,6 @@ export class StuntSession extends SessionBase {
       this.view.update(run.bike, dt, app.time, app.renderer.camera.position);
       if (this.isNet) this._send(dt);
     }
-    this.courseView.update(dt, this.spectator ? null : run);
   }
 
   _pose(dt) {
@@ -149,6 +149,14 @@ export class StuntSession extends SessionBase {
     const fallT = S.phase === 'crashed' ? 1 : 0;
     this.fall += (fallT - this.fall) * Math.min(1, dt * 9);
     if (S.phase === 'crashed') b.lean = this.fall * 1.3 * (this._fallSide || 1);
+    // missed a gap: the rider drops through the hole towards the clouds (visual only)
+    if (S.phase === 'crashed' && this._intoGap) {
+      this.dropV += 14 * dt;
+      this.pose.drop = Math.min(60, this.pose.drop + this.dropV * dt);
+    } else if (S.phase !== 'crashed') {
+      this.pose.drop = 0;
+      this.dropV = 0;
+    }
   }
 
   onRunEvent(e) {
@@ -172,6 +180,7 @@ export class StuntSession extends SessionBase {
         break;
       case 'crash':
         this._fallSide = Math.random() < 0.5 ? -1 : 1;
+        this._intoGap = /gap/i.test(e.reason);
         app.audio.play('wall');
         app.effects.burst(pos, '#ffd27a', 26, 5, 0.1, 0.6, true, app.focusVel());
         ui.message('CRASH', e.reason, 'small');
@@ -295,7 +304,7 @@ export class StuntSession extends SessionBase {
     const goal = info.next ? { title: info.complete ? `Next: L${info.next.n} ${info.next.name}` : 'Keep practising', sub: info.next.desc, action: { label: 'Next level', stunt: info.next.id, kind: 'stunt_next' } } : null;
     return {
       title: info.complete ? `Level complete · ${'★'.repeat(info.stars)}${'☆'.repeat(3 - info.stars)}` : info.fail ? info.fail : 'Objectives not met',
-      sub: `Stunt L${level.n} · ${level.name} · ${this.app.track.name}`,
+      sub: `Stunt L${level.n} · ${level.name} · ${skyName(level)} sky course`,
       rows: [],
       stunt: {
         score: res.score,
@@ -549,9 +558,11 @@ export class StuntSession extends SessionBase {
   onRoom(room) {
     if (room.phase === 'lobby' && this.phase === 'results' && this._wantLobby) {
       this.app.endSession();
-      this.app.startDemo();
-      this.app.ui.showMenu('lobby');
-      this.app.ui.renderLobby(room, this.net.id);
+      // back to the racing world behind the lobby (the sky course is rebuilt on the next start)
+      this.app.leaveStuntWorld().then(() => {
+        this.app.ui.showMenu('lobby');
+        this.app.ui.renderLobby(this.net.room || room, this.net.id);
+      });
     }
   }
 
@@ -562,7 +573,7 @@ export class StuntSession extends SessionBase {
   dispose() {
     this.view.dispose();
     for (const r of this.remotes.values()) r.view.dispose();
-    this.courseView.dispose();
+    if (this.world.isStunt) this.world.run = null;
     document.body.classList.remove('stunt-mode');
     this.app.ui.stunt?.onSessionEnd();
   }

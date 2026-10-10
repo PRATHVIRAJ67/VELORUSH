@@ -815,3 +815,6 @@ body.stunt-mode .hud-pos, body.stunt-mode .hud-standings, body.stunt-mode .hud-d
   body.touch-on .sh-obj { top: 64px; }
   body.touch-on .sh-obj li:nth-child(n + 3) { display: none; }
 }
+/* stunt sky courses: no racing minimap / map preview */
+body.stunt-mode .hud-minimap { display: none; }
+.stunt-lobby .lobby-map { display: none; }

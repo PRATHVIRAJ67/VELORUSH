@@ -41,7 +41,7 @@ for (const level of levels) {
     const r = (x) => Math.round(x / 100) * 100;
     const s3 = r(st.score * k);
     const s2 = Math.min(s3 - 300, r(Math.max(plain.stats.score * 1.1, st.score * 0.35)));
-    suggested[level.name] = [s2, s3];
+    suggested[level.name] = [s2, s3, st.score, level.objectives.score || 0];
   }
   const starOk = st.score >= level.stars[1];
   const ok = sol.ok && starOk;

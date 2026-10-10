@@ -96,7 +96,7 @@ export class RiderView {
     this.pitch += (pitchT - this.pitch) * Math.min(1, dt * 10);
     root.rotation.set(this.pitch, st.yaw, 0, 'YXZ');
     const tr = st.trick;
-    if (tr && (tr.pitch || tr.spin || tr.fall)) {
+    if (tr && (tr.pitch || tr.spin || tr.fall || tr.drop)) {
       // flips (local X) and spins (local Y) turn the bike around its centre, not the tyre contact
       _qBase.setFromEuler(_eBase.set(this.pitch, st.yaw, 0, 'YXZ'));
       _qTrick.setFromEuler(_eTrick.set(-tr.pitch, tr.spin, tr.fall || 0, 'YXZ'));
@@ -104,6 +104,10 @@ export class RiderView {
       _cBase.set(0, COM, 0).applyQuaternion(_qBase);
       _cRot.set(0, COM, 0).applyQuaternion(root.quaternion);
       root.position.add(_cBase).sub(_cRot);
+      if (tr.drop) {
+        root.position.y -= tr.drop;
+        this.blob.visible = false;
+      } else this.blob.visible = this.visible;
     }
     const groundY = c.y + this.track.rampHeight(st.s, st.d);
     const h = Math.max(0, st.y - groundY);

@@ -222,9 +222,9 @@ for (const id of ['L16', 'L31', 'L41']) {
     window.__app.input.keys.add('up');
   });
   await sleep(2500);
-  const st = await page.evaluate(() => ({ v: window.__app.session.run.bike.v, map: window.__app.track.id, feats: window.__app.session.courseView.group.children.length, bike: window.__app.session.bikeId }));
+  const st = await page.evaluate(() => ({ v: window.__app.session.run.bike.v, map: window.__app.track.id, feats: window.__app.world.courseView.group.children.length, sky: window.__app.world.theme.name, bike: window.__app.session.bikeId }));
   await page.evaluate(() => window.__app.input.keys.delete('up'));
-  ok(st.v > 3 && st.feats > 3, `${id} launches on ${st.map} and rides (${(st.v * 3.6).toFixed(0)} km/h, ${st.feats} course meshes, bike ${st.bike})`);
+  ok(st.v > 3 && st.feats > 3, `${id} launches on its own sky course ${st.map} (${st.sky}) and rides (${(st.v * 3.6).toFixed(0)} km/h, ${st.feats} course meshes, bike ${st.bike})`);
   await shot(`11-${id}`);
 }
 // quit to the stunt menu via pause
@@ -233,7 +233,7 @@ await sleep(300);
 await click('#btn-quit');
 await waitMenu('stunt', 20000);
 ok(await page.evaluate(() => !document.body.classList.contains('stunt-mode') && !window.__app.scene?.getObjectByName?.('stunt-course')), 'quitting returns to Stunt Park and removes the course');
-ok(await page.evaluate(() => !window.__app.renderer.scene.getObjectByName('stunt-course')), 'stunt course disposed from the scene');
+ok(await page.evaluate(() => !window.__app.renderer.scene.getObjectByName('stunt-course') && !window.__app.world.isStunt && !window.__app.track.id.startsWith('sky-') && !!window.__app.world.terrain?.build), 'leaving stunt mode disposes the sky course and restores the racing map world');
 
 // ---------------- normal racing still works (original bike) ----------------
 await page.evaluate(() => window.__app.startLocal({ mode: 'quick', laps: 1, ai: 3, skill: 'easy', track: 'mountain' }));
