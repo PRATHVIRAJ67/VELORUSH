@@ -482,6 +482,24 @@ export class Terrain {
     return g.dists[fz * g.n + fx];
   }
 
+  /** Distance to the road centre line, interpolated between grid nodes (roadDistAt snaps to the nearest node). */
+  roadDistSmooth(x, z) {
+    if (!this._inInner(x, z)) return 999;
+    const I = this.INNER;
+    const { n, dists } = this.inner;
+    const fx = (x - (I.cx - I.half)) / I.cell;
+    const fz = (z - (I.cz - I.half)) / I.cell;
+    const i = Math.max(0, Math.min(n - 2, Math.floor(fx)));
+    const j = Math.max(0, Math.min(n - 2, Math.floor(fz)));
+    const tx = Math.max(0, Math.min(1, fx - i));
+    const tz = Math.max(0, Math.min(1, fz - j));
+    const a = dists[j * n + i];
+    const b = dists[j * n + i + 1];
+    const c = dists[(j + 1) * n + i];
+    const d = dists[(j + 1) * n + i + 1];
+    return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+  }
+
   roadFlagsAt(x, z) {
     if (!this._inInner(x, z)) return 0;
     const I = this.INNER;

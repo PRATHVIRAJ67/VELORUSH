@@ -9,3 +9,5 @@ client/dist-crazygames/
 *.zip
 velo-rush-crazygames/
 velo-rush-crazygames-flat/
+CRAZYGAMES-UPLOAD-*/
+.claude/

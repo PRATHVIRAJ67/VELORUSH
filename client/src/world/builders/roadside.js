@@ -110,8 +110,14 @@ export function stoneWalls(P) {
     const side = rng() < 0.5 ? -1 : 1;
     const d0 = side * (W + 2.2);
     const d1 = side * (W + 2.9);
-    const prof = side > 0 ? [[d0, -0.8], [d0, 0.85], [d1, 0.8], [d1, -0.8]] : [[d1, -0.8], [d1, 0.8], [d0, 0.85], [d0, -0.8]];
-    batch.add(mat, P._extrude(s, Math.min(t.length - 1, s + len), 2, prof));
+    const prof = side > 0 ? [[d0, -2], [d0, 0.85], [d1, 0.8], [d1, -2]] : [[d1, -2], [d1, 0.8], [d0, 0.85], [d0, -2]];
+    const s1 = Math.min(t.length - 1, s + len);
+    batch.add(mat, P._extrude(s, s1, 2, prof));
+    // spectators and other props keep out of the wall
+    for (let a = s; a <= s1; a += 1) {
+      const c = P.P(a, side * (W + 2.55));
+      P.solids.push({ x: c.x, z: c.z, r: 0.45 });
+    }
   }
   batch.build(P.group);
 }
@@ -139,6 +145,9 @@ export function fallenLogs(P) {
   items.forEach(([p, r, sc], k) => {
     q.setFromAxisAngle(Y, r);
     im.setMatrixAt(k, m.compose(p, q, new THREE.Vector3(sc, 1, 1)));
+    // footprint along the trunk (local X after rotateZ, turned by r about Y)
+    const half = 2.5 * sc;
+    for (let a = -half; a <= half; a += 1) P.solids.push({ x: p.x + Math.cos(r) * a, z: p.z - Math.sin(r) * a, r: 0.4 });
   });
   im.castShadow = true;
   P.group.add(im);

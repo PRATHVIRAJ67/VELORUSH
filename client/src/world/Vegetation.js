@@ -229,10 +229,11 @@ function addWind(material, amp) {
 }
 
 export class Vegetation {
-  constructor(terrain, track, exclusions = []) {
+  constructor(terrain, track, exclusions = [], crowd = null) {
     this.terrain = terrain;
     this.track = track;
     this.exclusions = exclusions; // [{x,z,r}]
+    this.crowd = crowd; // Set of "x,z" 1 m cells where spectators stand
     this.group = new THREE.Group();
     this.chunks = [];
     this.materials = [];
@@ -240,6 +241,7 @@ export class Vegetation {
   }
 
   _excluded(x, z) {
+    if (this.crowd?.has(`${Math.floor(x)},${Math.floor(z)}`)) return true;
     for (const e of this.exclusions) if ((x - e.x) ** 2 + (z - e.z) ** 2 < e.r * e.r) return true;
     return false;
   }
@@ -264,6 +266,21 @@ export class Vegetation {
       cactus: { geo: [cactusGeometry(0), cactusGeometry(1)], items: [] },
       juniper: { geo: [juniperGeometry(0), juniperGeometry(1)], items: [] },
       shrub: { geo: [shrubGeometry()], items: [] },
+    };
+    // footprint radius of each type at scale 1 (from its geometry), so nothing overhangs the riding area
+    for (const ty of Object.values(types)) {
+      const g = ty.geo[0];
+      g.computeBoundingBox();
+      const b = g.boundingBox;
+      ty.radius = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
+    }
+    const reach = this.track.limit + 0.4; // riders reach |d| <= limit; keep a little air beyond it
+    /** Size that keeps the item clear of the riding area (0 = does not fit). */
+    const fit = (ty, dist, sz) => {
+      const room = dist - reach;
+      if (ty.radius * sz <= room) return sz;
+      const smaller = room / ty.radius;
+      return smaller >= sz * 0.55 ? smaller : 0;
     };
     // weighted species picker for this map
     const species = Object.entries(V.species).filter(([k]) => types[k] && k !== 'shrub' && k !== 'bush');
@@ -295,11 +312,17 @@ export class Vegetation {
       if (dist < minRoad) return;
       // rocks on steep ground & near cliffs
       if (slope > 0.55 || (flags & FLAG.CLIFF && rng() < 0.12)) {
-        if (rng() < 0.18) types.rock.items.push([x, h, z, 0.8 + rng() * 2.8, rng()]);
+        if (rng() < 0.18) {
+          const sz = fit(types.rock, dist, 0.8 + rng() * 2.8);
+          if (sz) types.rock.items.push([x, h, z, sz, rng()]);
+        }
         return;
       }
       if (h > V.treeLine + n * 60) {
-        if (rng() < 0.04) types.rock.items.push([x, h, z, 1 + rng() * 3, rng()]);
+        if (rng() < 0.04) {
+          const sz = fit(types.rock, dist, 1 + rng() * 3);
+          if (sz) types.rock.items.push([x, h, z, sz, rng()]);
+        }
         return;
       }
       let density = (smoothstep(0.42, 0.72, n) * 0.85 + forestZone * 0.55 + (dist < 60 ? 0.1 : 0)) * V.density;
@@ -312,12 +335,15 @@ export class Vegetation {
           kind = leafy ? (n3 > 0.55 ? types.birch : types.leaf) : n3 > 0.52 || h > 55 ? types.spruce : types.pine;
         } else kind = pickSpecies(h, (n3 + rng() * 0.35) % 1);
         // natural size variation: a few veterans, many young trees
-        const sz = 0.65 + rng() * 0.6 + (rng() < 0.08 ? 0.45 : 0);
-        kind.items.push([x, h, z, sz, rng()]);
+        const sz = fit(kind, dist, 0.65 + rng() * 0.6 + (rng() < 0.08 ? 0.45 : 0));
+        if (sz) kind.items.push([x, h, z, sz, rng()]);
       } else if (rng() < 0.06 * Math.max(0.4, V.density) + (V.species.shrub || 0) * 0.08) {
-        (V.species.shrub ? types.shrub : types.bush).items.push([x, h, z, 0.7 + rng() * 1.1, rng()]);
+        const ty = V.species.shrub ? types.shrub : types.bush;
+        const sz = fit(ty, dist, 0.7 + rng() * 1.1);
+        if (sz) ty.items.push([x, h, z, sz, rng()]);
       } else if (rng() < 0.015) {
-        types.rock.items.push([x, h, z, 0.4 + rng() * 1.2, rng()]);
+        const sz = fit(types.rock, dist, 0.4 + rng() * 1.2);
+        if (sz) types.rock.items.push([x, h, z, sz, rng()]);
       }
     };
 
@@ -327,7 +353,7 @@ export class Vegetation {
       for (let x = inner.cx - inner.half + 4; x < inner.cx + inner.half - 4; x += sp) {
         const jx = x + (rng() - 0.5) * sp * 0.9;
         const jz = z + (rng() - 0.5) * sp * 0.9;
-        place(jx, jz, T.roadDistAt(jx, jz), T.roadFlagsAt(jx, jz));
+        place(jx, jz, T.roadDistSmooth(jx, jz), T.roadFlagsAt(jx, jz));
       }
     }
     // grass tufts along the road

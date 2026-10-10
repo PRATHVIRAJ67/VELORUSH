@@ -40,6 +40,7 @@ const _q = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 const _s = new THREE.Vector3(1, 1, 1);
 const Y = new THREE.Vector3(0, 1, 0);
+const _g = new THREE.Vector3();
 
 export class Props {
   constructor(track, terrain) {
@@ -48,6 +49,9 @@ export class Props {
     this.group = new THREE.Group();
     this.exclusions = [];
     this.spectatorGroups = [];
+    this.crowdCells = new Set(); // 1 m cells within ~2 m of a spectator, kept free of vegetation
+    this.walkways = []; // raised walkable bands beside the road: {d0, d1, top, spans:[[s0, s1]]} (city sidewalks)
+    this.solids = []; // footprints of solid roadside props {x, z, r} that people must not stand in
     this.animated = [];
     this.W = track.halfWidth + track.shoulder;
     this.tmp = {};
@@ -91,6 +95,24 @@ export class Props {
 
   head(s) {
     return this.track.sample(s).head;
+  }
+
+  /**
+   * Height of the surface something standing at road coords (s, d) rests on: the bridge deck or
+   * tunnel floor, the road + shoulder, a raised walkway registered by a builder (city sidewalks),
+   * or else the lowest terrain point under a small footprint (nothing floats over a slope).
+   */
+  groundY(s, d, foot = 0.15) {
+    const t = this.track;
+    const sw = t.wrap(s);
+    const road = this.P(sw, 0, 0, _g).y;
+    const ad = Math.abs(d);
+    // road + shoulder, and bridge decks / tunnel floors (which end at W + 0.6)
+    if (ad <= this.W || (t.FLAGS[t.idx(sw)] & (FLAG.BRIDGE | FLAG.TUNNEL) && ad <= this.W + 0.6)) return road;
+    for (const w of this.walkways) if (ad >= w.d0 && ad <= w.d1 && w.spans.some(([a, b]) => sw >= a && sw <= b)) return road + w.top;
+    const p = this.P(sw, d, 0, _g);
+    const T = this.terrain;
+    return Math.min(T.heightAt(p.x - foot, p.z - foot), T.heightAt(p.x + foot, p.z - foot), T.heightAt(p.x - foot, p.z + foot), T.heightAt(p.x + foot, p.z + foot));
   }
 
   build() {
@@ -194,7 +216,8 @@ export class Props {
             // Mediterranean-style low stone parapet instead of a steel rail
             const d0 = side * (W + 0.1);
             const d1 = side * (W + 0.65);
-            const prof = side > 0 ? [[d0, -0.3], [d0, 0.85], [d1, 0.85], [d1, -0.3]] : [[d1, -0.3], [d1, 0.85], [d0, 0.85], [d0, -0.3]];
+            // foot well below the road so the wall meets the ground where the embankment falls away
+            const prof = side > 0 ? [[d0, -1.5], [d0, 0.85], [d1, 0.85], [d1, -1.5]] : [[d1, -1.5], [d1, 0.85], [d0, 0.85], [d0, -1.5]];
             batch.add(this.mats.stone, this._extrude(s0, s1, 2, prof));
           } else {
             batch.add(this.mats.metal, g);
@@ -208,10 +231,14 @@ export class Props {
     // posts (instanced)
     const postGeo = new THREE.BoxGeometry(0.12, 1.0, 0.12).translate(0, 0.5, 0);
     const pm = new THREE.InstancedMesh(postGeo, this.mats.post, posts.length);
+    const _ps = new THREE.Vector3();
     posts.forEach(([s, d], k) => {
-      this.P(s, d, -0.05, _v);
+      // the rail is fixed at road height; the post reaches down to the ground (no gap where it falls away)
+      this.P(s, d, 0, _v);
+      const top = _v.y + 0.95;
+      _v.y = Math.min(_v.y - 0.05, this.groundY(s, d, 0.06));
       _q.setFromAxisAngle(Y, this.head(s));
-      pm.setMatrixAt(k, _m.compose(_v, _q, _s));
+      pm.setMatrixAt(k, _m.compose(_v, _q, _ps.set(1, top - _v.y, 1)));
     });
     pm.castShadow = true;
     this.group.add(pm);
@@ -223,7 +250,7 @@ export class Props {
     const band = new THREE.InstancedMesh(new THREE.BoxGeometry(0.13, 0.22, 0.13).translate(0, 0.9, 0), this.mats.dark, delins.length);
     delins.forEach(([s, d], k) => {
       this.P(s, d, 0, _v);
-      _v.y = Math.max(_v.y, this.terrain.heightAt(_v.x, _v.z));
+      _v.y = this.groundY(s, d, 0.06);
       _q.setFromAxisAngle(Y, this.head(s));
       _m.compose(_v, _q, _s);
       dm.setMatrixAt(k, _m);
@@ -241,6 +268,8 @@ export class Props {
     const bm = new THREE.InstancedMesh(bg, this.mats.straw, bales.length);
     bales.forEach(([s, d], k) => {
       this.P(s, d, 0, _v);
+      _v.y = this.groundY(s, d, 0.5);
+      this.solids.push({ x: _v.x, z: _v.z, r: 0.75 });
       _q.setFromAxisAngle(Y, this.head(s) + Math.PI / 2);
       bm.setMatrixAt(k, _m.compose(_v, _q, _s));
     });
@@ -997,14 +1026,36 @@ export class Props {
     const W = this.W;
     const rng = makeRng(99);
     const spots = [];
+    const onWalkway = (s, d) => this.walkways.some((w) => Math.abs(d) >= w.d0 && Math.abs(d) <= w.d1 && w.spans.some(([a, b]) => s >= a && s <= b));
+    // solid props (walls, logs, bales…) people must not stand in
+    const blocked = (x, z) => this.solids.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + 0.25) ** 2);
+    // people keep ~0.55 m apart (1 m hash cells)
+    const cells = new Map();
+    const key = (x, z) => `${Math.floor(x)},${Math.floor(z)}`;
+    const crowded = (x, z) => {
+      for (let i = -1; i <= 1; i++)
+        for (let j = -1; j <= 1; j++)
+          for (const o of cells.get(`${Math.floor(x) + i},${Math.floor(z) + j}`) || []) if ((o.x - x) ** 2 + (o.z - z) ** 2 < 0.55 * 0.55) return true;
+      return false;
+    };
     const addCluster = (sa, sb, side, dMin, dMax, density) => {
       for (let s = sa; s < sb; s += density) {
-        const d = side * (W + dMin + rng() * (dMax - dMin));
-        const p = this.P(t.wrap(s + rng()), d, 0);
-        const g = T.heightAt(p.x, p.z);
-        const y = Math.max(g, p.y - 0.1);
-        if (y - p.y > 3.5) continue;
-        spots.push({ x: p.x, y, z: p.z, face: this.head(t.wrap(s)) + (side > 0 ? Math.PI / 2 : -Math.PI / 2), s: t.wrap(s) });
+        let d = side * (W + dMin + rng() * (dMax - dMin));
+        const sw = t.wrap(s + rng());
+        // on a raised walkway (city sidewalk) stay clear of its kerb and outer edge
+        for (const w of this.walkways) if (Math.abs(d) >= w.d0 - 0.5 && Math.abs(d) <= w.d1 + 0.5) d = side * Math.min(w.d1 - 0.3, Math.max(w.d0 + 0.3, Math.abs(d)));
+        const p = this.P(sw, d, 0);
+        const y = this.groundY(sw, d, 0.18);
+        // nobody stands high up a cutting, down a drop, on a cliff face, inside a prop or inside someone else
+        if (t.FLAGS[t.idx(sw)] & FLAG.TUNNEL) continue; // beside a tunnel is solid rock
+        const curv = Math.abs(t.CURV[t.idx(sw)]);
+        if (curv > 0 && Math.abs(d) > 0.85 / curv) continue; // pinched inside of a hairpin (roadside strips fold there)
+        if (y - p.y > 3.5 || p.y - y > 2.5 || (!onWalkway(sw, d) && T.slopeAt(p.x, p.z) > 0.85) || blocked(p.x, p.z) || crowded(p.x, p.z)) continue;
+        const sp = { x: p.x, y, z: p.z, face: this.head(t.wrap(s)) + (side > 0 ? Math.PI / 2 : -Math.PI / 2), s: t.wrap(s) };
+        spots.push(sp);
+        const k = key(p.x, p.z);
+        if (!cells.has(k)) cells.set(k, []);
+        cells.get(k).push(sp);
       }
     };
     addCluster(-140, 150, -1, 1.4, 4.5, 1.1);
@@ -1021,16 +1072,17 @@ export class Props {
     }
     for (const cp of t.checkpoints) {
       if (t.FLAGS[t.idx(cp)] & (FLAG.TUNNEL | FLAG.BRIDGE)) continue;
-      addCluster(cp - 12, cp + 12, 1, 1.6, 4, 1.4);
-      addCluster(cp - 12, cp + 12, -1, 1.6, 4, 1.4);
+      addCluster(cp - 12, cp + 12, 1, 2.1, 4.5, 1.4);
+      addCluster(cp - 12, cp + 12, -1, 2.1, 4.5, 1.4);
     }
     const bz = this.zone(FLAG.BRIDGE);
     if (bz) addCluster(bz.s0 - 30, bz.s0 - 8, -1, 1.5, 4, 1.4);
     const nOfficials0 = spots.length;
     for (const cp of [...t.checkpoints, 0]) {
       if (t.FLAGS[t.idx(cp)] & (FLAG.TUNNEL | FLAG.BRIDGE)) continue;
-      addCluster(cp - 3, cp + 3, 1, 0.9, 1.2, 3);
-      addCluster(cp - 3, cp + 3, -1, 0.9, 1.2, 3);
+      // just outside the arch legs / gantry pillars, not inside them
+      addCluster(cp - 3, cp + 3, 1, 2.1, 2.4, 3);
+      addCluster(cp - 3, cp + 3, -1, 2.1, 2.4, 3);
     }
     for (let i = nOfficials0; i < spots.length; i++) spots[i].official = true;
     if (bz) addCluster(bz.s1 + 8, bz.s1 + 30, 1, 1.5, 4, 1.4);
@@ -1076,6 +1128,8 @@ export class Props {
     rest.computeBoundingSphere();
     this.group.add(shirts, rest);
     this.spectators = { spots, shirts, rest };
+    // trees, cacti, rocks and grass keep clear of spectators (Vegetation checks these 1 m cells)
+    for (const sp of spots) for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) this.crowdCells.add(`${Math.floor(sp.x) + i},${Math.floor(sp.z) + j}`);
   }
 
   _flags() {
@@ -1108,7 +1162,7 @@ export class Props {
     const c = new THREE.Color();
     spots.forEach(([s, d], i) => {
       const p = this.P(s, d, 0);
-      p.y = Math.max(p.y, this.terrain.heightAt(p.x, p.z));
+      p.y = this.groundY(s, d, 0.05);
       _q.setFromAxisAngle(Y, this.head(s) + Math.PI / 2);
       _m.compose(p, _q, _s);
       flags.setMatrixAt(i, _m);
@@ -1137,7 +1191,7 @@ export class Props {
     for (const s of spots) {
       const side = t.CURV[t.idx(s)] > 0 ? -1 : 1; // inside of the bend, looking at the riders
       const p = this.P(s, side * (W + 1.6), 0);
-      p.y = Math.max(p.y, this.terrain.heightAt(p.x, p.z));
+      p.y = this.groundY(s, side * (W + 1.6), 0.2);
       _q.setFromAxisAngle(Y, this.head(s) + Math.PI + side * 0.6);
       _m.compose(p, _q, _s);
       batch.add(vestMat, body, _m);

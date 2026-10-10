@@ -10,6 +10,8 @@ import { Batch } from '../Props.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
 const SIDEWALK = 4.5;
+/** Raised sidewalk band beside the road (offsets from the road edge W, top height above the road). */
+export const CITY_SIDEWALK = { inner: 0.25, outer: SIDEWALK, top: 0.19 };
 
 /** Quad strip following the road surface (decals). */
 function roadDecal(P, s0, s1, d0, d1, yOff, segs, mat) {
@@ -60,14 +62,19 @@ export function buildCity(P) {
   pave.map.repeat.set(1, 1);
   const curbMat = new THREE.MeshStandardMaterial({ color: '#b9b7b0', roughness: 0.7 });
   const walk = new Batch();
+  // register the sidewalk so props and spectators stand on its top (Props.groundY)
+  const sidewalk = { d0: W + CITY_SIDEWALK.inner, d1: W + CITY_SIDEWALK.outer, top: CITY_SIDEWALK.top, spans: [] };
+  P.walkways.push(sidewalk);
   let start = -1;
   for (let i = 0; i <= t.count; i++) {
     const ok = i < t.count && !(t.FLAGS[i] & (FLAG.BRIDGE | FLAG.TUNNEL));
     if (ok && start < 0) start = i;
     if ((!ok || i === t.count) && start >= 0) {
       const s0 = start * t.ds;
-      const s1 = (i - 1) * t.ds;
+      // the strip that reaches the end of the lap closes the loop (no gap at the finish line)
+      const s1 = i === t.count ? t.length + t.ds : (i - 1) * t.ds;
       if (s1 - s0 > 6) {
+        sidewalk.spans.push([s0, s1]);
         for (const side of [-1, 1]) {
           const a = side * W;
           const b = side * (W + 0.25);
@@ -181,15 +188,21 @@ export function buildCity(P) {
   const poolMat = new THREE.MeshBasicMaterial({ map: makeLightPool(), opacity: 0.42, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4 });
   const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(15, 15).rotateX(-Math.PI / 2), poolMat, lamps.length);
   lamps.forEach(([s, side], i) => {
-    const base = P.P(s, side * (W + 1.2));
-    const onBridge = inZone(s, FLAG.BRIDGE);
-    if (!onBridge) base.y = Math.max(base.y, T.heightAt(base.x, base.z));
+    // on the bridge the deck ends at W + 0.6: mount the lamp on the deck edge instead of in mid-air
+    const ld = side * (inZone(s, FLAG.BRIDGE) ? W + 0.35 : W + 1.2);
+    const base = P.P(s, ld);
+    base.y = P.groundY(s, ld, 0.1);
     const q = new THREE.Quaternion().setFromAxisAngle(Y, P.head(s) + (side > 0 ? -Math.PI / 2 : Math.PI / 2));
     const m = new THREE.Matrix4().compose(base, q, new THREE.Vector3(1, 1, 1));
     poles.setMatrixAt(i, m);
     heads.setMatrixAt(i, m);
+    // light pool lies on the road: tilted to its slope and turned to its heading (flat squares hovered on hills)
     const pool = P.P(s, side * (W - 2.2), 0.09);
-    pools.setMatrixAt(i, new THREE.Matrix4().makeTranslation(pool.x, pool.y, pool.z));
+    const c = t.sample(s);
+    const fwd = new THREE.Vector3(c.hx, c.slope, c.hz).normalize();
+    const lat = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
+    const up = new THREE.Vector3().crossVectors(fwd, lat);
+    pools.setMatrixAt(i, new THREE.Matrix4().makeBasis(lat, up, fwd).setPosition(pool));
   });
   poles.castShadow = true;
   pools.renderOrder = 2;
@@ -213,7 +226,7 @@ export function buildCity(P) {
     P.group.add(decal);
     for (const side of [-1, 1]) {
       const b = P.P(s - 3, side * (W + 0.9));
-      b.y = Math.max(b.y, T.heightAt(b.x, b.z));
+      b.y = P.groundY(s - 3, side * (W + 0.9), 0.1);
       const m = new THREE.Matrix4().compose(b, new THREE.Quaternion().setFromAxisAngle(Y, P.head(s) + Math.PI), new THREE.Vector3(1, 1, 1));
       tl.add(poleMat, new THREE.CylinderGeometry(0.08, 0.1, 3.2, 6).translate(0, 1.6, 0), m);
       tl.add(P.mats.dark, new THREE.BoxGeometry(0.4, 1.1, 0.3).translate(0, 3.6, 0), m);
@@ -229,7 +242,7 @@ export function buildCity(P) {
     if (inZone(s, FLAG.BRIDGE | FLAG.TUNNEL)) continue;
     for (const side of [-1, 1]) {
       const p = P.P(s + side * 7, side * (W + SIDEWALK - 1.1));
-      p.y = Math.max(p.y, T.heightAt(p.x, p.z)) + 0.2;
+      p.y = P.groundY(s + side * 7, side * (W + SIDEWALK - 1.1), 0.16);
       trees.push(p);
     }
   }

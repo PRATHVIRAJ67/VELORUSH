@@ -54,7 +54,7 @@ export class World {
       const p = track.toWorld(s, 0);
       this.props.exclusions.push({ x: p.x, z: p.z, r: this.terrain.W + 7 });
     }
-    this.vegetation = new Vegetation(this.terrain, track, this.props.exclusions);
+    this.vegetation = new Vegetation(this.terrain, track, this.props.exclusions, this.props.crowdCells);
     scene.add(this.vegetation.build());
 
     progress(0.85, 'Painting the sky…');
