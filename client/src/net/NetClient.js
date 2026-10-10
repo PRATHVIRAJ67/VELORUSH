@@ -2,6 +2,8 @@
 import { C, S, PROTOCOL_VERSION, packBike } from '@shared/protocol.js';
 import { NET } from '@shared/constants.js';
 import { NetSession } from '../race/NetSession.js';
+import { StuntSession } from '../race/StuntSession.js';
+import { stuntData } from '../core/stuntProfile.js';
 
 const SESSION_KEY = 'velorush.session';
 
@@ -67,7 +69,7 @@ export class NetClient {
       const timeout = setTimeout(() => ws.close(), 6000);
       ws.onopen = () => {
         const p = this.app.profile;
-        this._send(C.HELLO, { v: PROTOCOL_VERSION, name: p.name, look: this._look(), bikeId: p.bikeId, session: this.session });
+        this._send(C.HELLO, { v: PROTOCOL_VERSION, name: p.name, look: this._look(), bikeId: p.bikeId, stuntBikeId: stuntData(p).bikeId, session: this.session });
       };
       ws.onmessage = (ev) => {
         let m;
@@ -226,11 +228,23 @@ export class NetClient {
   sendProfile() {
     if (!this.online) return;
     const p = this.app.profile;
-    this._send(C.PROFILE, { name: p.name, look: this._look(), bikeId: p.bikeId });
+    this._send(C.PROFILE, { name: p.name, look: this._look(), bikeId: p.bikeId, stuntBikeId: stuntData(p).bikeId });
   }
 
   sendState(bike) {
     this._send(C.STATE, { q: packBike(bike), ct: Math.round(performance.now()) });
+  }
+
+  /** Stunt challenge: bike state + trick angles (so others see flips, the server sees rotations). */
+  sendStuntState(run) {
+    const S = run.state;
+    const q = packBike(S.bike);
+    q.push(Math.round(S.T.pitch * 1000) / 1000, Math.round(S.T.spin * 1000) / 1000, (S.phase === 'crashed' ? 1 : 0) | (S.T.styleOn ? 2 : 0));
+    this._send(C.STATE, { q, ct: Math.round(performance.now()) });
+  }
+
+  sendStuntDone(result) {
+    this._send(C.STUNT_DONE, { ...result, u: this.app.session?.run?.bike.u });
   }
 
   /** Called on app start: nothing to do unless a room was active before a reload. */
@@ -285,7 +299,7 @@ export class NetClient {
         else if (app.session?.isNet && app.session.goAt === m.goAt) app.session.onResume(m);
         else {
           const begin = () => {
-            app.startSession(new NetSession(app, this, m));
+            app.startSession(m.mode === 'stunt' ? new StuntSession(app, { levelId: m.level }, this, m) : new NetSession(app, this, m));
             app.ui.renderLobbyTrack?.();
           };
           if (m.track && m.track !== app.track.id) app.loadTrack(m.track).then(begin);

@@ -24,6 +24,14 @@ import { wrapAngle } from '@shared/math.js';
 
 const _w = {};
 const _c = {};
+// stunt mode only: rotations about the bike's centre of mass (racing never sets st.trick)
+const _qBase = new THREE.Quaternion();
+const _qTrick = new THREE.Quaternion();
+const _eBase = new THREE.Euler();
+const _eTrick = new THREE.Euler();
+const _cBase = new THREE.Vector3();
+const _cRot = new THREE.Vector3();
+const COM = 0.8;
 
 export class RiderView {
   constructor(scene, track, { name = 'Rider', look = {}, isLocal = false, ghost = false, night = false } = {}) {
@@ -87,6 +95,16 @@ export class RiderView {
     if (st.airborne && st.v > 1) pitchT = -Math.atan2(st.vy || 0, st.v) * 0.6;
     this.pitch += (pitchT - this.pitch) * Math.min(1, dt * 10);
     root.rotation.set(this.pitch, st.yaw, 0, 'YXZ');
+    const tr = st.trick;
+    if (tr && (tr.pitch || tr.spin || tr.fall)) {
+      // flips (local X) and spins (local Y) turn the bike around its centre, not the tyre contact
+      _qBase.setFromEuler(_eBase.set(this.pitch, st.yaw, 0, 'YXZ'));
+      _qTrick.setFromEuler(_eTrick.set(-tr.pitch, tr.spin, tr.fall || 0, 'YXZ'));
+      root.quaternion.copy(_qBase).multiply(_qTrick);
+      _cBase.set(0, COM, 0).applyQuaternion(_qBase);
+      _cRot.set(0, COM, 0).applyQuaternion(root.quaternion);
+      root.position.add(_cBase).sub(_cRot);
+    }
     const groundY = c.y + this.track.rampHeight(st.s, st.d);
     const h = Math.max(0, st.y - groundY);
     this.blob.position.set(w.x, groundY + 0.06, w.z);

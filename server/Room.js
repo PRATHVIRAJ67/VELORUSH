@@ -9,6 +9,9 @@ import { S, packBike, unpackBike, FL, ROOM_CODE_CHARS } from '@cyclegame/shared/
 import { maxAccel } from '@cyclegame/shared/physics.js';
 import { getTrack, TRACK_IDS } from '@cyclegame/shared/tracks.js';
 import { makeRng } from '@cyclegame/shared/math.js';
+import { StuntChallenge } from '@cyclegame/shared/stunts/challenge.js';
+import { STUNT_LEVEL_BY_ID } from '@cyclegame/shared/stunts/levels.js';
+import { NITRO, RESPAWN } from '@cyclegame/shared/stunts/config.js';
 
 export function makeCode(existing) {
   for (;;) {
@@ -50,8 +53,12 @@ export class Room {
 
   // ---------------- public pool ----------------
   /** Joinable by strangers right now: public, waiting in the lobby, host present, seat free. */
+  get isStunt() {
+    return this.settings.mode === 'stunt';
+  }
+
   get listable() {
-    if (!this.isPublic || this.phase !== 'lobby' || this.members.size >= NET.maxPlayers) return false;
+    if (!this.isPublic || this.isStunt || this.phase !== 'lobby' || this.members.size >= NET.maxPlayers) return false;
     return !!this.members.get(this.hostId)?.connected;
   }
 
@@ -143,6 +150,15 @@ export class Room {
 
   updateSettings(id, s) {
     if (id !== this.hostId || this.phase !== 'lobby') return;
+    if (this.isStunt) {
+      // a stunt challenge only changes its level (which decides the map)
+      if (s.level !== undefined && STUNT_LEVEL_BY_ID[s.level]) {
+        this.settings.level = s.level;
+        this.settings.track = STUNT_LEVEL_BY_ID[s.level].map;
+      }
+      this.broadcastRoom();
+      return;
+    }
     if (s.laps !== undefined) this.settings.laps = clampInt(s.laps, 1, 3, 2);
     if (s.bots !== undefined) this.settings.bots = clampInt(s.bots, 0, NET.maxPlayers - 1, 2);
     if (s.skill !== undefined && AI_SKILLS[s.skill]) this.settings.skill = s.skill;
@@ -152,6 +168,7 @@ export class Room {
   }
 
   botCount() {
+    if (this.isStunt) return 0;
     return Math.max(0, Math.min(this.settings.bots, NET.maxPlayers - this.members.size));
   }
 
@@ -164,6 +181,7 @@ export class Room {
     if (id !== this.hostId) return { error: 'Only the host can start the race' };
     if (readyOnly ? this.phase !== 'lobby' : !this.canStart()) return { error: 'Everyone must be ready first' };
     this.autoStartAt = this.pairReadyAt = this.allReadyAt = null;
+    if (this.isStunt) return this.startStunt(readyOnly);
     this.track = getTrack(this.settings.track);
     const race = new Race(this.track, { laps: this.settings.laps, countdown: NET.countdown, weather: pickWeather(this.settings.weather) });
     const rng = makeRng(Date.now() & 0xffffff);
@@ -209,9 +227,40 @@ export class Room {
     return { ok: true };
   }
 
+  /** Friend challenge on a stunt level: same lobby/countdown/results flow, stunt rules. */
+  startStunt(readyOnly) {
+    const level = STUNT_LEVEL_BY_ID[this.settings.level] || STUNT_LEVEL_BY_ID.L01;
+    const race = new StuntChallenge(level, { countdown: NET.countdown });
+    this.track = race.track;
+    let slot = 0;
+    const humans = [...this.members.values()].filter((m) => m.connected && (!readyOnly || m.ready));
+    for (const m of this.members.values()) m.spectator = !humans.includes(m);
+    for (const m of humans) {
+      const c = m.client;
+      race.addRacer({ id: c.id, name: c.name, slot: slot++, bikeId: c.stuntBikeId, look: c.look });
+    }
+    for (const r of race.racers) {
+      r.lastStateAt = 0;
+      r.violations = 0;
+    }
+    this.race = race;
+    this.phase = 'countdown';
+    this.goAt = Date.now() + NET.countdown * 1000;
+    this.lastTick = Date.now();
+    this.finishDeadline = null;
+    this.stuntDeadline = this.goAt + ((level.time || 180) + 30) * 1000;
+    this.resultsAt = null;
+    this.log(`room ${this.code}: stunt challenge ${level.id}, ${race.racers.length} riders`);
+    for (const m of this.members.values()) if (m.connected) this.sendStart(m.client, m.spectator);
+    this.broadcastRoom();
+    return { ok: true };
+  }
+
   sendStart(client, spectator, racer = null) {
     const race = this.race;
     this.send(client, S.START, {
+      mode: this.isStunt ? 'stunt' : undefined,
+      level: this.isStunt ? race.level.id : undefined,
       goAt: this.goAt,
       laps: race.laps,
       weather: race.weather,
@@ -247,6 +296,7 @@ export class Room {
     if (!r || r.dnf) return;
     const now = Date.now();
     if (this.phase === 'countdown') return; // riders are held on the grid
+    if (this.isStunt && (r.reported || r.finished)) return; // run is over
     const st = unpackBike(q, {});
     for (const k of ['u', 'd', 'yaw', 'v', 'y', 'lean', 'steer']) if (!Number.isFinite(st[k])) return;
     const b = r.bike;
@@ -281,6 +331,14 @@ export class Room {
       }
     }
     if (pad) r.boostT = Math.max(r.boostT, 1.7);
+    // stunt nitro: refilled by air time instead of stamina; budget = start tank + generous air refill
+    if (this.isStunt) {
+      r.nitro = Math.min(NITRO.max * 1.5, (r.nitro ?? NITRO.start) + (st.fl & FL.AIR ? 60 * dt : 0));
+      if (wantsBoost && !r.prevBoost && !pad && r.nitro >= NITRO.cost - 4) {
+        r.nitro -= NITRO.cost;
+        r.boostT = NITRO.duration * 1.4 + 0.3;
+      }
+    }
     r.prevBoost = wantsBoost;
     if (wantsSprint) r.stam -= (PHYSICS.sprintDrain / 1.05) * dt;
     else r.stam += (PHYSICS.staminaRegen + PHYSICS.draftRegenBonus) * 1.25 * dt;
@@ -294,15 +352,24 @@ export class Room {
     const h = dt / steps;
     for (let i = 0; i < steps; i++) vUB = Math.max(0, vUB + maxAccel(vUB, slope, { sprint: canSprint, boost: canBoost }) * h);
     vUB = Math.min(vUB, PHYSICS.safetyMaxSpeed);
+    let du = st.u - b.u;
+    // stunt respawn: a jump back to the start or a checkpoint already passed, at most the restart speed
+    if (this.isStunt && du < -3 && this.race.respawnPoints(r).some((u) => Math.abs(st.u - u) < 3) && st.v <= RESPAWN.speedMax + 1) {
+      vUB = Math.max(vUB, st.v + 1);
+      b.u = st.u;
+      b.s = this.track.wrap(st.u);
+      du = 0;
+    }
     // plausibility: speed within the envelope + distance consistent with speed
     const vOk = st.v >= 0 && st.v <= vMax && st.v <= vUB * 1.06 + 1;
-    const du = st.u - b.u;
     const maxDu = ((vPrev + Math.min(st.v, vUB + 1)) / 2) * dt * 1.3 + 2;
     const duOk = du <= maxDu && du >= -(maxDu + 6);
     // envelope restarts from what the rider actually reported (can't bank slack)
     r.vUB = vOk ? Math.min(vUB, st.v + 1.5) : Math.min(vUB, vPrev + 1.5);
     const c = this.track.sample(b.s);
-    const yOk = st.y > c.y - 3 && st.y < c.y + 8;
+    // stunt courses: ramps/decks raise the ground and big air goes higher
+    const yTop = this.isStunt ? this.track.rampHeight(b.s, b.d) + 18 : 8;
+    const yOk = st.y > c.y - 3 && st.y < c.y + yTop;
     // Marginal deviations (network bursts, rounding) earn decaying strikes; clear cheats are rejected at once.
     const hard = !yOk || st.v > vMax || st.v > vUB * 1.15 + 2.5 || du > maxDu * 1.6 + 2 || du < -(maxDu + 6);
     r.strikes = Math.max(0, (r.strikes || 0) - dt * 1.5);
@@ -333,6 +400,25 @@ export class Room {
     b.exhausted = !!(st.fl & FL.EXHAUSTED);
     b.stamina = Math.max(0, Math.min(100, st.stamina || 0));
     b.draft = st.draft;
+    if (this.isStunt) this.race.observe(r, b.airborne, Number(q[10]) || 0, Number(q[11]) || 0, q[12] | 0, dt);
+  }
+
+  /** Stunt challenge: a rider's final score (validated + capped by StuntChallenge.report). */
+  onStuntDone(id, m) {
+    const race = this.race;
+    if (!this.isStunt || !race || this.phase !== 'racing' || !m) return;
+    const r = race.byId.get(id);
+    if (!r) return;
+    // the last stretch to the line may not have been streamed yet: accept it if plausible
+    const u = Number(m.u);
+    if (!r.finished && Number.isFinite(u) && u > r.bike.u && u - r.bike.u < Math.max(8, r.bike.v * 0.6 + 4)) {
+      r.bike.u = u;
+      r.bike.s = this.track.wrap(u);
+      race.checkProgress(r);
+    }
+    const res = race.report(r, m);
+    if (res.adjusted) this.log(`room ${this.code}: ${r.name} stunt score adjusted (${res.reason})`);
+    if (res.ok && this.finishDeadline === null) this.finishDeadline = Date.now() + 90 * 1000;
   }
 
   // ---------------- simulation tick ----------------
@@ -348,7 +434,7 @@ export class Room {
       }
     }
     if (this.phase === 'results' && this.resultsAt && now - this.resultsAt > 45000) this.backToLobby(null, false);
-    if (this.isPublic && this.phase === 'lobby') this.publicAutoStart(now);
+    if (this.isPublic && !this.isStunt && this.phase === 'lobby') this.publicAutoStart(now);
     const race = this.race;
     if (!race || (this.phase !== 'countdown' && this.phase !== 'racing')) return;
     // race clock is derived from the authoritative GO time
@@ -399,6 +485,18 @@ export class Room {
     const race = this.race;
     if (!race || this.phase !== 'racing') return;
     const now = Date.now();
+    if (this.isStunt) {
+      const timeout = (this.finishDeadline && now > this.finishDeadline) || now > this.stuntDeadline;
+      if (!race.allDone && !timeout && race.racers.length) return;
+      race.simulateToEnd();
+      race.drainEvents();
+      this.phase = 'results';
+      this.resultsAt = now;
+      this.broadcast(S.RESULTS, this.resultsPayload());
+      this.broadcastRoom();
+      this.log(`room ${this.code}: stunt challenge finished`);
+      return;
+    }
     const humans = race.racers.filter((r) => r.external && !r.dnf);
     const humansDone = humans.every((r) => r.finished);
     if ((humansDone && humans.length) || (this.finishDeadline && now > this.finishDeadline) || !humans.length) {
@@ -419,6 +517,25 @@ export class Room {
   }
 
   resultsPayload() {
+    if (this.isStunt) {
+      const s = this.race.standings();
+      return {
+        laps: 1,
+        mode: 'stunt',
+        level: this.race.level.id,
+        rows: s.map((r, i) => ({
+          place: i + 1,
+          id: r.id,
+          name: r.name,
+          color: r.look?.jersey || '#888',
+          score: r.score,
+          complete: r.complete,
+          time: r.finished ? r.finishTime : null,
+          status: r.dnf ? 'DNF' : r.complete ? '✓ complete' : r.finished ? 'objectives missed' : '',
+          bot: false,
+        })),
+      };
+    }
     const s = this.race.standings();
     const win = s[0]?.finishTime ?? null;
     return {
@@ -444,6 +561,7 @@ export class Room {
       if (r.finished) a[7] |= FL.FINISHED;
       if (r.dnf) a[7] |= FL.DNF;
       if (r.connected === false) a[7] |= FL.OFFLINE;
+      if (this.isStunt) return [r.id, ...a, r.lap, r.gate, r.place, r.finishTime ?? -1, r.tp || 0, r.ts || 0, r.sfl || 0, r.score || 0];
       return [r.id, ...a, r.lap, r.gate, r.place, r.finishTime ?? -1];
     });
     this.broadcast(S.SNAP, { ts: now, rt: race.time, p });
@@ -455,7 +573,7 @@ export class Room {
       id: m.client.id,
       name: m.client.name,
       look: m.client.look,
-      bikeId: m.client.bikeId,
+      bikeId: this.isStunt ? m.client.stuntBikeId : m.client.bikeId,
       ready: m.ready,
       connected: m.connected,
       spectator: m.spectator && this.phase !== 'lobby',

@@ -5,7 +5,7 @@ export const PROTOCOL_VERSION = 1;
 // client -> server
 export const C = {
   HELLO: 'hello', // {v, name, look, bikeId, session}
-  CREATE: 'create', // {laps, bots, skill, weather, track, public?}
+  CREATE: 'create', // {laps, bots, skill, weather, track, public?, mode?: 'stunt', level?}
   JOIN: 'join', // {code}
   QUICK: 'quick', // {track?} server picks a public lobby (or opens one) — the client never chooses
   JOIN_PUBLIC: 'joinpub', // {code} join a listed public lobby; falls back to QUICK if it's gone
@@ -18,6 +18,7 @@ export const C = {
   LOBBY: 'lobby', // {ready} return to lobby after results
   PROFILE: 'profile', // {name, look, bikeId}
   PING: 'ping', // {c}
+  STUNT_DONE: 'stuntdone', // {score, complete, fail, time, u, st} stunt challenge: final result of my run
 };
 
 // server -> client
@@ -25,7 +26,7 @@ export const S = {
   WELCOME: 'welcome', // {id, session, resumed}
   ROOM: 'room', // {room}
   ERROR: 'error', // {msg}
-  START: 'start', // {goAt, laps, track, weather, grid:[{id,name,look,bikeId,slot,bot}], spectator, resume?}
+  START: 'start', // {goAt, laps, track, weather, grid:[{id,name,look,bikeId,slot,bot}], spectator, resume?, mode?, level?}
   SNAP: 'snap', // {ts, rt, p: [packed racer]}
   EVENT: 'event', // {e, id, ...}
   CORRECT: 'correct', // {u, d, v}

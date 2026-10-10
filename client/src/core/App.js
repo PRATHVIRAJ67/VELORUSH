@@ -13,6 +13,8 @@ import { Effects } from '../fx/Effects.js';
 import { ChaseCamera } from '../camera/ChaseCamera.js';
 import { RiderView } from '../entities/RiderView.js';
 import { LocalSession } from '../race/LocalSession.js';
+import { StuntSession } from '../race/StuntSession.js';
+import { STUNT_LEVEL_BY_ID } from '@shared/stunts/levels.js';
 import { NetClient } from '../net/NetClient.js';
 import { loadSettings, loadProfile, saveSettings } from './Storage.js';
 import { enterMobileFullscreen, keepMobileFullscreen, isMobile } from './device.js';
@@ -193,7 +195,35 @@ export class App {
     }, 380);
   }
 
+  /** Stunt mode, solo: load the level's map, then ride the course. */
+  async startStunt(levelId, opts = {}) {
+    const level = STUNT_LEVEL_BY_ID[levelId];
+    if (!level) return;
+    this.audio.init();
+    enterMobileFullscreen();
+    await this.loadTrack(level.map);
+    this.ui.fade(true);
+    setTimeout(() => {
+      try {
+        this.endSession();
+        this.stopDemo();
+        this.ui.stuntLabel = `L${level.n} ${level.name}`;
+        this.session = new StuntSession(this, { levelId, ...opts });
+        this.chase.snapBehind(this._buildTarget());
+        this.chase.setMode('orbit');
+      } catch (err) {
+        console.error(err);
+        this.session = null;
+        this.startDemo();
+        this.ui.showMenu('stunt');
+        this.ui.toast('Could not start the stunt level: ' + err.message, 5000);
+      }
+      this.ui.fade(false);
+    }, 380);
+  }
+
   startSession(session) {
+    if (session.isStunt) this.ui.stuntLabel = `L${session.level.n} ${session.level.name}`;
     analytics.track('multiplayer_race', { m: this.track.id, md: 'multiplayer', x: session.spectator ? 'spectator' : 'rider' });
     enterMobileFullscreen();
     this.endSession();
@@ -214,8 +244,9 @@ export class App {
     this.audio.silenceRide();
   }
 
-  quitToMenu(menu = 'main') {
+  quitToMenu(menu = null) {
     const s = this.session;
+    menu ||= s?.menuAfter || 'main';
     if (s && (s.phase === 'countdown' || s.phase === 'racing')) {
       // where players give up: share of the race distance covered
       const done = s.focusBike ? s.focusBike.u / (this.track.length * (s.race?.laps || s.laps || 1)) : 0;

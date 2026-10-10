@@ -7,10 +7,12 @@ import { drawMapPreview, MAP_LIST } from './MapPreview.js';
 import { saveProfile, saveSettings, loadSettings } from '../core/Storage.js';
 import { bestMapMedal, bestWin, medalCount, medalTargets, skillName, dailyChallenge, dailyStatus, DAILY_XP } from '../core/progress.js';
 import { analytics } from '../core/analytics.js';
+import { StuntUI } from './StuntUI.js';
+import { NITRO } from '@shared/stunts/config.js';
 
 const $ = (id) => document.getElementById(id);
 const AUTO_NEXT_S = 10; // seconds before the results screen starts the next race
-const MENUS = ['menu-main', 'menu-play', 'menu-mp', 'menu-lobby', 'menu-garage', 'menu-settings'];
+const MENUS = ['menu-main', 'menu-play', 'menu-mp', 'menu-lobby', 'menu-garage', 'menu-settings', 'menu-stunt'];
 
 export class UI {
   constructor(app) {
@@ -22,6 +24,7 @@ export class UI {
     this._buildMapCards();
     this.settingsReturn = 'main';
     this._bind();
+    this.stunt = new StuntUI(app, this);
     this._fillSettings();
     this.refreshProfile();
     this.updateTouchVisibility();
@@ -85,6 +88,8 @@ export class UI {
     this.updateTouchVisibility();
     if (name === 'garage') this._openGarage();
     else this.garage?.stop();
+    if (name === 'stunt') this.stunt.open();
+    else this.stunt?.close();
     if (name === 'play') this._refreshPlay();
     if (name === 'main') {
       this.refreshProfile();
@@ -102,6 +107,7 @@ export class UI {
     this.app.net?.watchPublic(false);
     for (const m of MENUS) $(m).classList.remove('show');
     this.garage?.stop();
+    this.stunt?.close();
     this.currentMenu = null;
   }
 
@@ -239,8 +245,13 @@ export class UI {
       sprintFrac = Math.min(1, b.stamina / PHYSICS.boostCost);
       state = sprintFrac >= 1 ? 'READY' : 'CHARGING';
     }
+    if (h.stunt) {
+      // stunt mode: the burst-boost bar shows the nitro meter (filled by tricks)
+      sprintFrac = h.stunt.nitro;
+      state = b.boostTimer > 0 ? 'NITRO' : h.stunt.nitroReady ? 'NITRO READY' : `NITRO ${Math.round(h.stunt.nitro * 100)}%`;
+    }
     $('hud-sprint').style.width = `${Math.round(sprintFrac * 100)}%`;
-    $('hud-sprint').className = state === 'READY' ? 'ready' : state === 'BOOSTING' || state === 'SPRINTING' ? 'active' : '';
+    $('hud-sprint').className = state === 'READY' || state === 'NITRO READY' ? 'ready' : state === 'BOOSTING' || state === 'SPRINTING' || state === 'NITRO' ? 'active' : '';
     $('hud-boost-state').textContent = state;
     $('hud-dist').textContent = (h.distLeft / 1000).toFixed(2) + ' km';
     const g = Math.round(h.grade * 100);
@@ -267,6 +278,10 @@ export class UI {
       )
       .join('');
     this.minimap.draw(h.riders);
+    if (h.stunt) {
+      $('hud-lap').textContent = this.stuntLabel || '';
+      this.stunt.updateHud(h.stunt);
+    }
   }
 
   setFps(fps) {
@@ -283,7 +298,8 @@ export class UI {
     this.updateTouchVisibility();
     this.refreshResults(res, true);
     // single player: the next race starts by itself unless the player chooses something else
-    if (!this.app.session?.isNet) this._startAutoNext();
+    // (stunt levels wait for the player: retry or next level is their call)
+    if (!this.app.session?.isNet && !this.app.session?.isStunt) this._startAutoNext();
   }
 
   // ---------------- auto next race (results) ----------------
@@ -334,15 +350,21 @@ export class UI {
     if (!$('results').classList.contains('show')) return;
     $('res-title').textContent = res.title;
     $('res-sub').textContent = res.sub + (res.ghost !== undefined ? ` · Ghost best ${formatTime(res.ghost)}` : '');
+    // stunt results: solo shows the stunt summary instead of the race table; challenges rank by score
+    $('results').classList.toggle('stunt-solo', !!res.stunt && !res.columns);
+    this.stunt.renderResults(res.stunt);
+    $('res-head').innerHTML = (res.columns || ['#', 'Rider', 'Time', 'Best lap']).map((c) => `<th>${c}</th>`).join('');
     $('res-body').innerHTML = res.rows
-      .map(
-        (r) => `<tr class="${r.isLocal ? 'me' : ''}"><td>${r.place}</td><td><i style="background:${r.color}"></i>${escapeHtml(r.name)}</td>
+      .map((r) =>
+        res.columns
+          ? `<tr class="${r.isLocal ? 'me' : ''}"><td>${r.place}</td><td><i style="background:${r.color}"></i>${escapeHtml(r.name)}</td><td>${Math.round(r.score || 0).toLocaleString('en-US')}${r.complete ? ' ✓' : ''}</td><td>${r.time != null ? formatTime(r.time) : r.status || '—'}</td></tr>`
+          : `<tr class="${r.isLocal ? 'me' : ''}"><td>${r.place}</td><td><i style="background:${r.color}"></i>${escapeHtml(r.name)}</td>
         <td>${r.time != null ? (r.gap != null ? formatGap(r.gap) : formatTime(r.time)) : r.status}</td><td>${r.best != null ? formatTime(r.best) : '—'}</td></tr>`,
       )
       .join('');
     const pod = res.rows.slice(0, 3);
     $('podium').innerHTML = [1, 0, 2]
-      .map((i) => pod[i] && pod[i].time != null ? `<div class="pod p${i + 1}"><b>${escapeHtml(pod[i].name)}</b><div class="step" style="--c:${pod[i].color}">${i + 1}</div></div>` : '<div class="pod empty"></div>')
+      .map((i) => pod[i] && (pod[i].time != null || res.columns) ? `<div class="pod p${i + 1}"><b>${escapeHtml(pod[i].name)}</b><div class="step" style="--c:${pod[i].color}">${i + 1}</div></div>` : '<div class="pod empty"></div>')
       .join('');
     $('btn-res-skip').style.display = res.canSkip ? '' : 'none';
     $('btn-rematch').textContent = res.rematchLabel || 'Rematch';
@@ -499,7 +521,11 @@ export class UI {
 
   renderLobby(room, myId) {
     $('lobby-code').textContent = room.code;
-    $('lobby-kind').textContent = room.public ? '🌍 PUBLIC RACE · CODE' : 'ROOM CODE';
+    const stunt = room.settings.mode === 'stunt';
+    $('menu-lobby').classList.toggle('stunt-lobby', stunt);
+    $('lobby-kind').textContent = stunt ? '🤸 STUNT CHALLENGE · CODE' : room.public ? '🌍 PUBLIC RACE · CODE' : 'ROOM CODE';
+    $('menu-lobby').querySelector('.screen-title').textContent = stunt ? 'Stunt challenge' : 'Race lobby';
+    if (stunt) this.stunt.renderLobby(room, room.hostId === myId);
     this._lobbyRoom = room;
     const isHost = room.hostId === myId;
     const humans = room.players.filter((p) => !p.bot);
@@ -522,6 +548,7 @@ export class UI {
     $('btn-ready').textContent = me?.ready ? 'Not ready' : 'Ready';
     $('btn-ready').classList.toggle('on', !!me?.ready);
     $('btn-host-start').style.display = isHost ? '' : 'none';
+    $('btn-host-start').textContent = stunt ? 'Start challenge' : 'Start Race';
     const allReady = humans.every((p) => p.ready || p.connected === false);
     const enough = room.players.length >= 2 || humans.length >= 1;
     $('btn-host-start').disabled = !(allReady && enough) || room.phase !== 'lobby';
@@ -544,6 +571,7 @@ export class UI {
       const me = room.players.find((p) => p.id === myId);
       hint = `Race starts in ${s}s${me && !me.ready ? ' — press Ready to ride, or watch and join the next one' : ''}`;
     } else if (room.public) hint = 'Public race — it starts by itself once 2 or more riders are ready.';
+    else if (room.settings.mode === 'stunt') hint = isHost ? (allReady ? 'Everyone is ready. Start the challenge!' : 'Share the code — friends join from Multiplayer → Join room. Waiting for everyone to be ready…') : 'Waiting for the host to start the challenge…';
     else hint = isHost ? (allReady ? 'Everyone is ready. Start when you like!' : 'Waiting for all riders to be ready…') : 'Waiting for the host to start the race…';
     $('lobby-hint').textContent = hint;
   }
@@ -705,6 +733,7 @@ export class UI {
     resClick('btn-goal', () => {
       const a = this.goal?.action;
       if (!a) return;
+      if (a.stunt) return app.startStunt(a.stunt, { source: 'next_level' });
       const auto = this._autoFiring; // started by the results countdown, not a click
       if (!auto) analytics.track('goal_click', { m: app.track.id, md: a.opts.mode, x: a.kind });
       app.startLocal({ ...a.opts, source: (auto ? 'auto_' : 'goal_') + a.kind });
@@ -776,6 +805,7 @@ export class UI {
     for (const [id, key] of [['lobby-laps', 'laps'], ['lobby-bots', 'bots'], ['lobby-skill', 'skill'], ['lobby-weather', 'weather'], ['lobby-track', 'track']]) {
       $(id).addEventListener('change', () => app.net.updateSettings({ [key]: ['skill', 'weather', 'track'].includes(key) ? $(id).value : Number($(id).value) }));
     }
+    $('lobby-level').addEventListener('change', () => app.net.updateSettings({ level: $('lobby-level').value }));
     app.input.bindTouch($('touch'));
   }
 }

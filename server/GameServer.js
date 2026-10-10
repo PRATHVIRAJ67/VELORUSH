@@ -5,6 +5,8 @@ import { getTrack, TRACK_IDS } from '@cyclegame/shared/tracks.js';
 import { NET, BIKE_BY_ID, OUTFITS, AI_SKILLS, WEATHER } from '@cyclegame/shared/constants.js';
 import { C, S, PROTOCOL_VERSION } from '@cyclegame/shared/protocol.js';
 import { Room, makeCode } from './Room.js';
+import { STUNT_LEVEL_BY_ID } from '@cyclegame/shared/stunts/levels.js';
+import { STUNT_BIKE_BY_ID } from '@cyclegame/shared/stunts/bikes.js';
 
 const randomId = () => 'p' + [...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
@@ -16,6 +18,7 @@ class Client {
     this.name = 'Rider';
     this.look = {};
     this.bikeId = 'allround';
+    this.stuntBikeId = 'allround'; // stunt challenges only (any of the 34 stunt garage bikes)
     this.room = null;
     this.alive = true;
     this.lastMsg = 0;
@@ -49,6 +52,11 @@ function cleanLook(l = {}) {
 
 /** Room settings from a create request (all fields validated, defaults for the rest). */
 function roomSettings(m, defaults) {
+  // stunt challenge: a level instead of laps/bots/map (the level decides the map)
+  if (m.mode === 'stunt') {
+    const level = STUNT_LEVEL_BY_ID[m.level] ? m.level : 'L01';
+    return { mode: 'stunt', level, laps: 1, bots: 0, skill: 'medium', weather: 'clear', track: STUNT_LEVEL_BY_ID[level].map };
+  }
   return {
     laps: Math.max(1, Math.min(3, Math.round(Number(m.laps)) || defaults.laps)),
     bots: Math.max(0, Math.min(NET.maxPlayers - 1, Math.round(Number(m.bots ?? defaults.bots)) || 0)),
@@ -64,6 +72,7 @@ function applyProfile(client, m) {
   client.name = cleanName(m.name);
   client.look = cleanLook(m.look);
   client.bikeId = BIKE_BY_ID[m.bikeId] ? m.bikeId : 'allround';
+  client.stuntBikeId = STUNT_BIKE_BY_ID[m.stuntBikeId] ? m.stuntBikeId : 'allround';
 }
 
 export class GameServer {
@@ -284,7 +293,8 @@ export class GameServer {
         }
         return;
       case C.CREATE:
-        this._createRoom(client, roomSettings(m, { laps: 2, bots: 0, skill: 'medium', track: 'mountain' }), !!m.public);
+        // stunt challenges are private (friends join by code), never in the public pool
+        this._createRoom(client, roomSettings(m, { laps: 2, bots: 0, skill: 'medium', track: 'mountain' }), !!m.public && m.mode !== 'stunt');
         return;
       case C.QUICK:
         if (this._matchCooldown(client)) return;
@@ -336,6 +346,9 @@ export class GameServer {
         return;
       case C.LOBBY:
         client.room?.backToLobby(client.id, m.ready);
+        return;
+      case C.STUNT_DONE:
+        client.room?.onStuntDone(client.id, m);
         return;
       case C.PING:
         client.send(S.PONG, { c: m.c, s: Date.now() });

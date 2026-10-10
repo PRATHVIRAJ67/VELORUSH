@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeSpokes, makeJersey, makeCarbon, makeHelmet, makeRotor } from '../world/textures.js';
 import { OUTFITS } from '@shared/constants.js';
+import { BIKE_GEO } from '@shared/stunts/bikes.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -94,18 +95,23 @@ export class CyclistModel {
     const S = sharedAssets();
     this.look = look;
     const bikeId = look.bikeId || 'allround';
+    // stunt garage bikes: geometry spec (undefined for the original four, which keep their exact build)
+    const geo = BIKE_GEO[bikeId];
+    this.geo = geo;
     this.root = new THREE.Group(); // positioned at ground contact, yaw + pitch
     this.lean = new THREE.Group(); // roll about the contact line
     this.root.add(this.lean);
     this.body = new THREE.Group(); // suspension bob
     this.lean.add(this.body);
 
-    const frameMat = new THREE.MeshPhysicalMaterial({ color: look.frame || '#e63946', roughness: 0.38, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08 });
-    const accentMat = new THREE.MeshStandardMaterial({ color: look.accent || '#ffffff', roughness: 0.35, metalness: 0.2 });
+    const frameMat = new THREE.MeshPhysicalMaterial({ color: geo?.frame || look.frame || '#e63946', roughness: geo?.metal ? 0.22 : 0.38, metalness: geo?.metal ? 0.95 : 0.35, clearcoat: 1, clearcoatRoughness: 0.08 });
+    const accentMat = new THREE.MeshStandardMaterial({ color: geo?.accent || look.accent || '#ffffff', roughness: 0.35, metalness: 0.2 });
     this.mats = [frameMat, accentMat];
 
     // ---------- frame ----------
-    const thick = bikeId === 'aero' ? 1.5 : bikeId === 'climber' ? 0.8 : bikeId === 'sprint' ? 1.25 : 1;
+    const FAMILY_THICK = { bmx: 1.7, dirt: 1.45, tt: 1.5, fat: 1.4, trial: 1.3 };
+    const thick = geo ? geo.thick ?? FAMILY_THICK[geo.family] ?? 1 : bikeId === 'aero' ? 1.5 : bikeId === 'climber' ? 0.8 : bikeId === 'sprint' ? 1.25 : 1;
+    const flatBars = !!geo && ['bmx', 'dirt', 'fat', 'trial'].includes(geo.family);
     const r = 0.022 * thick;
     const parts = [
       tubeGeo(P.seat, P.htTop, r * 0.9, r * 0.9), // top tube
@@ -130,6 +136,7 @@ export class CyclistModel {
     const saddleNose = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 6).scale(1, 0.28, 0.75), S.tape);
     saddleNose.position.set(0, 0.952, -0.33);
     this.body.add(post, saddle, saddleNose);
+    if (geo?.family === 'trial') post.visible = saddle.visible = saddleNose.visible = false;
 
     // ---------- steering (fork, bars, front wheel) ----------
     this.steerPivot = new THREE.Group();
@@ -140,8 +147,16 @@ export class CyclistModel {
     const toPivot = (v) => v.clone().sub(P.htBot);
     const fork = [];
     for (const sx of [-0.05, 0.05]) fork.push(tubeGeo(toPivot(V(sx * 0.6, 0.7, 0.41)), toPivot(V(sx, P.front.y, P.front.z)), r * 0.75, r * 0.5));
+    if (geo?.family === 'dirt' || geo?.family === 'fat') {
+      // suspension fork: fat stanchions + crown
+      for (const sx of [-0.06, 0.06]) fork.push(tubeGeo(toPivot(V(sx, 0.7, 0.41)), toPivot(V(sx, 0.5, 0.465)), 0.024, 0.024));
+      const crown = toPivot(V(0, 0.69, 0.41));
+      fork.push(new THREE.BoxGeometry(0.16, 0.04, 0.06).translate(crown.x, crown.y, crown.z));
+    }
     fork.push(tubeGeo(toPivot(P.htTop), toPivot(V(0, 0.9, 0.47)), 0.016)); // stem
     this.steerPivot.add(new THREE.Mesh(mergeGeometries(fork.map((g) => g.toNonIndexed())), frameMat));
+    if (flatBars) this._flatBars(geo, toPivot);
+    else {
     // drop handlebar
     const barL = [V(0.2, 0.74, 0.43), V(0.21, 0.76, 0.53), V(0.2, 0.85, 0.555), V(0.2, 0.9, 0.5), V(0.2, 0.9, 0.47), V(0.08, 0.9, 0.47), V(0, 0.9, 0.47)];
     const barR = barL.map((p) => V(-p.x, p.y, p.z));
@@ -160,6 +175,8 @@ export class CyclistModel {
     }
     this.hands = [toPivot(V(0.2, 0.91, 0.515)), toPivot(V(-0.2, 0.91, 0.515))];
     this.drops = [toPivot(V(0.205, 0.765, 0.52)), toPivot(V(-0.205, 0.765, 0.52))];
+    if (geo?.family === 'tt') this._aeroBars(toPivot);
+    }
     const hoseF = new THREE.CatmullRomCurve3([V(0.19, 0.89, 0.5), V(0.14, 0.86, 0.46), V(0.05, 0.8, 0.42), V(0.06, 0.55, 0.45), V(0.065, P.front.y + 0.08, P.front.z - 0.045)].map(toPivot));
     this.hoseF = new THREE.Mesh(new THREE.TubeGeometry(hoseF, 24, 0.0045, 5), S.cable);
     this.steerPivot.add(this.hoseF);
@@ -167,8 +184,10 @@ export class CyclistModel {
     this.hoseR = new THREE.Mesh(new THREE.TubeGeometry(hoseR, 30, 0.0045, 5), S.cable);
     this.body.add(this.hoseR);
     // wheels
-    const deep = bikeId === 'aero' ? 0.06 : bikeId === 'sprint' ? 0.04 : 0.022;
-    this.frontWheel = this._wheel(deep, accentMat);
+    const deep = geo ? geo.deep ?? (geo.family === 'tt' ? 0.06 : 0.022) : bikeId === 'aero' ? 0.06 : bikeId === 'sprint' ? 0.04 : 0.022;
+    const FAMILY_TIRE = { bmx: 0.032, dirt: 0.03, fat: 0.058, trial: 0.034 };
+    const wopts = geo ? { tire: geo.tire ?? FAMILY_TIRE[geo.family] ?? 0.017, knobby: ['bmx', 'dirt', 'fat', 'trial'].includes(geo.family) } : null;
+    this.frontWheel = this._wheel(deep, accentMat, wopts);
     this.frontWheel.position.copy(toPivot(P.front));
     this.steerPivot.add(this.frontWheel);
     const caliperGeo = new THREE.BoxGeometry(0.03, 0.045, 0.06);
@@ -178,7 +197,7 @@ export class CyclistModel {
     const calR = new THREE.Mesh(caliperGeo, S.black);
     calR.position.set(0.065, P.rear.y + 0.055, P.rear.z + 0.045);
     this.body.add(calR);
-    this.rearWheel = this._wheel(deep, accentMat);
+    this.rearWheel = this._wheel(deep, accentMat, geo?.disc ? { ...wopts, disc: true } : wopts);
     this.rearWheel.position.copy(P.rear);
     this.body.add(this.rearWheel);
 
@@ -212,6 +231,7 @@ export class CyclistModel {
     bottle.add(cage);
     this.body.add(bottle);
     this.bottle = bottle;
+    if (geo) this._attachments(geo, frameMat, accentMat, toPivot);
     const chain = mergeGeometries([
       tubeGeo(V(-0.07, P.bb.y + 0.1, P.bb.z), V(-0.07, P.rear.y + 0.045, P.rear.z), 0.005).toNonIndexed(),
       tubeGeo(V(-0.07, P.bb.y - 0.1, P.bb.z), V(-0.072, P.rear.y - 0.12, P.rear.z + 0.03), 0.005).toNonIndexed(),
@@ -323,16 +343,19 @@ export class CyclistModel {
     this._pose = { tmp: new THREE.Vector3(), target: new THREE.Vector3(), hip: new THREE.Vector3(), shoulder: new THREE.Vector3(), dir: new THREE.Vector3(), joint: new THREE.Vector3(), mid: new THREE.Vector3(), end: new THREE.Vector3(), pole: new THREE.Vector3() };
   }
 
-  _wheel(deep, accentMat) {
+  _wheel(deep, accentMat, opts = null) {
     const S = sharedAssets();
     const g = new THREE.Group();
     const spin = new THREE.Group();
     g.add(spin);
-    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.017, 8, 40), S.tire);
+    const tr = opts?.tire ?? 0.017;
+    // original wheels: exactly TorusGeometry(0.325, 0.017); wider stunt tyres keep the same outer diameter
+    const tire = new THREE.Mesh(opts ? new THREE.TorusGeometry(0.342 - tr, tr, opts.knobby ? 6 : 8, opts.knobby ? 28 : 40) : new THREE.TorusGeometry(0.325, 0.017, 8, 40), S.tire);
     tire.rotation.y = Math.PI / 2;
     spin.add(tire);
-    const rimInner = 0.31 - deep;
-    const rim = new THREE.Mesh(new THREE.RingGeometry(rimInner, 0.312, 40, 1), deep > 0.03 ? S.carbon : S.steel);
+    const rimOuter = 0.312 - Math.max(0, tr - 0.017) * 2;
+    const rimInner = opts ? rimOuter - 0.002 - deep : 0.31 - deep;
+    const rim = new THREE.Mesh(new THREE.RingGeometry(rimInner, rimOuter, 40, 1), deep > 0.03 ? S.carbon : S.steel);
     rim.rotation.y = Math.PI / 2;
     rim.material.side = THREE.DoubleSide;
     spin.add(rim);
@@ -346,6 +369,13 @@ export class CyclistModel {
       spin.add(stripe2);
     }
     const spokeMat = new THREE.MeshBasicMaterial({ map: S.spokes, transparent: true, alphaTest: 0.1, side: THREE.DoubleSide, depthWrite: false });
+    if (opts?.disc) {
+      // solid disc wheel (time trial bikes)
+      spokeMat.map = null;
+      spokeMat.color.copy(accentMat.color).multiplyScalar(0.35);
+      spokeMat.transparent = false;
+      spokeMat.depthWrite = true;
+    }
     const spokes = new THREE.Mesh(new THREE.CircleGeometry(rimInner + 0.004, 32), spokeMat);
     spokes.rotation.y = Math.PI / 2;
     spokes.renderOrder = 2;
@@ -356,8 +386,75 @@ export class CyclistModel {
     rotor.rotation.y = Math.PI / 2;
     rotor.position.x = 0.058;
     spin.add(rotor);
-    g.userData = { spin, spokeMat };
+    g.userData = { spin, spokeMat, disc: !!opts?.disc };
     return g;
+  }
+
+  /** Flat / riser handlebar for BMX, dirt, fat and trials frames (stunt garage). */
+  _flatBars(geo, toPivot) {
+    const S = sharedAssets();
+    const rise = geo.family === 'bmx' ? 0.16 : geo.family === 'trial' ? 0.1 : 0.05;
+    const by = 0.9 + rise;
+    const parts = [tubeGeo(V(-0.34, by, 0.47), V(0.34, by, 0.47), 0.014), tubeGeo(V(-0.06, 0.9, 0.47), V(-0.09, by, 0.47), 0.013), tubeGeo(V(0.06, 0.9, 0.47), V(0.09, by, 0.47), 0.013)];
+    if (geo.family === 'bmx') parts.push(tubeGeo(V(-0.1, 0.9 + rise * 0.55, 0.47), V(0.1, 0.9 + rise * 0.55, 0.47), 0.011));
+    for (const sx of [-0.3, 0.3]) parts.push(new THREE.CylinderGeometry(0.019, 0.019, 0.11, 8).rotateZ(Math.PI / 2).translate(sx, by, 0.47));
+    const barGeo = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+    barGeo.translate(-P.htBot.x, -P.htBot.y, -P.htBot.z);
+    this.steerPivot.add(new THREE.Mesh(barGeo, S.black));
+    this.hands = [toPivot(V(0.29, by + 0.01, 0.47)), toPivot(V(-0.29, by + 0.01, 0.47))];
+    this.drops = this.hands;
+  }
+
+  /** Time-trial extensions with arm pads (stunt garage aero bikes). */
+  _aeroBars(toPivot) {
+    const S = sharedAssets();
+    const ext = [];
+    for (const sx of [-0.07, 0.07]) {
+      ext.push(tubeGeo(V(sx, 0.915, 0.47), V(sx, 0.93, 0.8), 0.011));
+      ext.push(new THREE.BoxGeometry(0.07, 0.025, 0.12).translate(sx * 1.4, 0.935, 0.52));
+    }
+    const extGeo = mergeGeometries(ext.map((g) => g.toNonIndexed()));
+    extGeo.translate(-P.htBot.x, -P.htBot.y, -P.htBot.z);
+    this.steerPivot.add(new THREE.Mesh(extGeo, S.black));
+    this.drops = [toPivot(V(0.08, 0.93, 0.74)), toPivot(V(-0.08, 0.93, 0.74))];
+  }
+
+  /** Stunt garage extras: pegs, number plate, fenders, lamp. */
+  _attachments(geo, frameMat, accentMat, toPivot) {
+    const S = sharedAssets();
+    const att = geo.attach || [];
+    if (att.includes('pegs')) {
+      const pegGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.26, 10).rotateZ(Math.PI / 2);
+      const pegR = new THREE.Mesh(pegGeo, S.steel);
+      pegR.position.copy(P.rear);
+      this.body.add(pegR);
+      const pegF = new THREE.Mesh(pegGeo, S.steel);
+      pegF.position.copy(toPivot(P.front));
+      this.steerPivot.add(pegF);
+    }
+    if (att.includes('plate')) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.012), accentMat);
+      plate.position.copy(toPivot(V(0, 1.0, 0.5)));
+      plate.rotation.x = -0.25;
+      this.steerPivot.add(plate);
+    }
+    if (att.includes('fenders')) {
+      const fGeo = new THREE.TorusGeometry(0.37, 0.022, 4, 18, Math.PI * 0.7).rotateY(Math.PI / 2);
+      const ff = new THREE.Mesh(fGeo, frameMat);
+      ff.position.copy(this.frontWheel.position);
+      ff.rotation.x = -0.35;
+      this.steerPivot.add(ff);
+      const fr = new THREE.Mesh(fGeo, frameMat);
+      fr.position.copy(this.rearWheel.position);
+      fr.rotation.x = 0.55;
+      this.body.add(fr);
+    }
+    if (att.includes('light')) {
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.07, 10).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#fff6c8' }));
+      lamp.position.copy(toPivot(V(0, 0.88, 0.53)));
+      this.steerPivot.add(lamp);
+      this.mats.push(lamp.material);
+    }
   }
 
   /** Distance LOD: hide fine details for far riders. */
@@ -407,6 +504,7 @@ export class CyclistModel {
     for (const w of [this.frontWheel, this.rearWheel]) {
       const m = w.userData.spokeMat;
       const want = blur ? sharedAssets().spokesBlur : sharedAssets().spokes;
+      if (w.userData.disc) continue;
       if (m.map !== want) {
         m.map = want;
         m.needsUpdate = true;
