@@ -227,7 +227,7 @@ const LEADS = [0.2, 0.4, 0.6, 0.75, 0.9, 1.05, 1.2, 1.4, 1.6];
  * Pick the best trick program at takeoff by simulating each candidate to touchdown.
  * Restores the run afterwards.
  */
-function chooseTrick(pilot) {
+export function chooseTrick(pilot) {
   const run = pilot.run;
   const level = run.level;
   const snap = run.snapshot();

@@ -41,6 +41,7 @@
               <button class="menu-btn primary ride-now" id="btn-ride-now"><span>▶ Ride now</span><small id="ride-now-sub">Quick race</small></button>
               <button class="menu-btn" data-go="play"><span>Play</span><small>Choose mode, map and rivals</small></button>
               <button class="menu-btn" data-go="mp"><span>Multiplayer</span><small>Race friends with a room code</small></button>
+              <button class="menu-btn stunt-btn" data-go="stunt" id="btn-stunt"><span>Stunt Park</span><small>50 stunt levels · flips, spins, friend challenges</small></button>
               <button class="menu-btn" data-go="garage"><span>Garage</span><small>Bikes, colours, outfits</small></button>
               <button class="menu-btn" data-go="settings"><span>Settings</span><small>Graphics, audio, controls</small></button>
               <button class="menu-btn install-btn" id="btn-install" style="display: none"><span>Install app</span><small>Fullscreen, no browser bars</small></button>
@@ -107,6 +108,56 @@
           </div>
         </section>
 
+        <!-- STUNT PARK -->
+        <section id="menu-stunt" class="screen menu">
+          <div class="st-head">
+            <h1 class="screen-title">Stunt Park</h1>
+            <div class="st-wallet"><span id="st-starcount">★ 0/150</span><span class="coins" id="st-coins">🪙 0</span></div>
+          </div>
+          <div class="chips st-tabs">
+            <button class="chip sel" data-sttab="levels">Levels</button>
+            <button class="chip" data-sttab="garage">Bikes &amp; upgrades</button>
+            <button class="chip" data-sttab="missions">Missions <em class="badge" id="st-mission-badge"></em></button>
+          </div>
+          <div class="st-pane" id="st-levels">
+            <div class="chips st-tiers" id="st-tiers"></div>
+            <div class="st-levels-wrap">
+              <div class="lv-grid" id="st-grid"></div>
+              <div class="panel lv-detail" id="st-detail"></div>
+            </div>
+          </div>
+          <div class="st-pane" id="st-garage">
+            <div class="garage">
+              <div class="garage-preview" id="st-preview"></div>
+              <div class="garage-side">
+                <div class="panel">
+                  <h2>Stunt bikes <small id="st-owned"></small></h2>
+                  <div class="chips st-cats" id="st-cats"></div>
+                  <div class="bike-list st-bikes" id="st-bikes"></div>
+                </div>
+                <div class="panel">
+                  <h2 id="st-bike-name"></h2>
+                  <p class="hint" id="st-bike-desc"></p>
+                  <div class="bike-stats" id="st-bike-stats"></div>
+                  <div class="st-bike-act" id="st-bike-act"></div>
+                </div>
+                <div class="panel">
+                  <h2>Upgrades <small>stunt solo only · challenges use base stats</small></h2>
+                  <div id="st-upgrades"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="st-pane" id="st-missions">
+            <div class="mp-grid">
+              <div class="panel"><h2>Missions</h2><div id="st-mission-list"></div></div>
+              <div class="panel"><h2>Achievements <small id="st-ach-count"></small></h2><div class="ach-list" id="st-ach-list"></div></div>
+            </div>
+          </div>
+          <p class="hint st-local">Stunt progress, coins and unlocks are saved in this browser only (no account).</p>
+          <div class="btn-row"><button class="btn ghost" data-go="main">Back</button></div>
+        </section>
+
         <!-- MULTIPLAYER -->
         <section id="menu-mp" class="screen menu">
           <h1 class="screen-title">Multiplayer</h1>
@@ -165,6 +216,10 @@
                 <label>Map <select id="lobby-track"></select></label>
                 <label>Weather <select id="lobby-weather"><option value="clear">Clear</option><option value="cloudy">Cloudy</option><option value="fog">Fog</option><option value="rain">Rain</option><option value="random">Random</option></select></label>
                 <label>Bot skill <select id="lobby-skill"><option value="easy">Rookie</option><option value="medium">Pro</option><option value="hard">Elite</option><option value="elite">Legend</option></select></label>
+              </div>
+              <div class="lobby-stunt" id="lobby-stunt">
+                <label>Stunt level <select id="lobby-level"></select></label>
+                <div id="lobby-stunt-info"></div>
               </div>
               <div class="lobby-map" id="lobby-map"></div>
               <p class="hint" id="lobby-hint"></p>
@@ -279,6 +334,14 @@
               <div class="bar sprint"><div id="hud-sprint"></div></div>
             </div>
           </div>
+          <div class="stunt-hud" id="stunt-hud">
+            <div class="sh-score"><b id="sh-score">0</b><small>POINTS</small><em id="sh-combo"></em></div>
+            <ul class="sh-obj" id="sh-obj"></ul>
+            <ol class="sh-others" id="sh-others"></ol>
+            <div class="sh-hint" id="sh-hint"></div>
+            <div class="sh-air" id="sh-air"></div>
+            <div class="sh-pop" id="sh-pop"></div>
+          </div>
           <div class="fps" id="fps"></div>
           <button class="pause-btn" id="btn-pause" aria-label="Pause">❚❚</button>
         </section>
@@ -324,6 +387,26 @@
               <div><kbd>CAM / RESET</kbd><span>Camera · reset bike</span></div>
               <div><kbd>❚❚</kbd><span>Pause</span></div>
             </div>
+            <div class="cc-stunt">
+              <h2>Stunts <small>in the air</small></h2>
+              <div class="cc-grid cc-keys">
+                <div><kbd>S / ↓</kbd><span>Backflip</span></div>
+                <div><kbd>W / ↑</kbd><span>Frontflip (let go, press again)</span></div>
+                <div><kbd>A D</kbd><span>Spin (let go, press again)</span></div>
+                <div><kbd>Shift</kbd><span>No-hander · let go before landing</span></div>
+                <div><kbd>Space</kbd><span>Nitro (fills from tricks)</span></div>
+                <div><kbd>R</kbd><span>Back to last checkpoint</span></div>
+              </div>
+              <div class="cc-grid cc-touch">
+                <div><kbd>BRAKE</kbd><span>Backflip</span></div>
+                <div><kbd>PEDAL</kbd><span>Frontflip (lift, tap again)</span></div>
+                <div><kbd>◀ ▶</kbd><span>Spin (lift, tap again)</span></div>
+                <div><kbd>SPRINT</kbd><span>No-hander · lift before landing</span></div>
+                <div><kbd>BOOST</kbd><span>Nitro (fills from tricks)</span></div>
+                <div><kbd>RESET</kbd><span>Back to last checkpoint</span></div>
+              </div>
+              <p class="hint">Land upright: stop rotating close to level. A crash scores nothing for that jump.</p>
+            </div>
             <button class="btn primary wide" id="btn-controls-ok">OK, let's ride</button>
             <div class="cc-timer"><i id="cc-fill"></i></div>
           </div>
@@ -349,9 +432,10 @@
               <h1 id="res-title">Race complete</h1>
               <div class="res-sub" id="res-sub"></div>
               <table class="res-table">
-                <thead><tr><th>#</th><th>Rider</th><th>Time</th><th>Best lap</th></tr></thead>
+                <thead><tr id="res-head"><th>#</th><th>Rider</th><th>Time</th><th>Best lap</th></tr></thead>
                 <tbody id="res-body"></tbody>
               </table>
+              <div class="res-stunt" id="res-stunt"></div>
               <div class="xp-box">
                 <div class="xp-line" id="xp-lines"></div>
                 <div class="xpbar big"><div id="res-xp"></div></div>
