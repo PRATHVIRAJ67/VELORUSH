@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeSpokes, makeJersey, makeCarbon, makeHelmet, makeRotor } from '../world/textures.js';
 import { OUTFITS } from '@shared/constants.js';
 import { BIKE_GEO } from '@shared/stunts/bikes.js';
+import { CRASH_STEER } from './CrashAnim.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -544,7 +545,11 @@ export class CyclistModel {
     // crank: follows the pedalling; when coasting the pedals settle level (freewheel)
     const dc = p.crank - this._lastCrank;
     this._lastCrank = p.crank;
-    if (pedalling && Math.abs(dc) < 2) this._crankVis += dc;
+    if (p.crankTo !== undefined) {
+      // stunt crash: cranks turn to the nearest equivalent of the requested angle
+      const to = p.crankTo + Math.round((this._crankVis - p.crankTo) / (Math.PI * 2)) * Math.PI * 2;
+      this._crankVis += (to - this._crankVis) * k(10);
+    } else if (pedalling && Math.abs(dc) < 2) this._crankVis += dc;
     else {
       const level = Math.round((this._crankVis - Math.PI / 2) / Math.PI) * Math.PI + Math.PI / 2;
       this._crankVis += (level - this._crankVis) * k(4);
@@ -612,4 +617,169 @@ export class CyclistModel {
       A.glove.position.copy(R.end);
     }
   }
+
+  // ------------------------------------------------------------------ stunt crash (CrashAnim)
+  /**
+   * How this bike lies on its side, from its own geometry: the largest roll (rad) before any part
+   * on the down side (bar end, pedal, frame...) would go below the deck, and how far the root has
+   * to rise at that roll so the tyre sidewalls stay on top. The cranks are turned vertical in a
+   * crash (see crankTo) with the upper pedal on the down side. sign = side the bike falls to.
+   */
+  crashRoll(sign = 1) {
+    this._crashFit ||= {};
+    const key = sign > 0 ? 1 : -1;
+    if (this._crashFit[key]) return this._crashFit[key];
+    // with the bars turned the way they flop in the crash (CrashAnim steer, at v = 0)
+    const q0 = this.steerPivot.quaternion.clone();
+    this.steerPivot.quaternion.setFromAxisAngle(this.steerAxis, -key * CRASH_STEER * 0.42);
+    this.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(this.body.matrixWorld).invert();
+    const m = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const skip = new Set([this.rider, this.crankGroup, ...this.pedals]);
+    const pts = [];
+    const visit = (o) => {
+      if (skip.has(o)) return;
+      if (o.isMesh) {
+        m.multiplyMatrices(inv, o.matrixWorld);
+        const pos = o.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m);
+          const down = -v.x * key; // lateral distance on the side that goes down
+          if (down > 0.005) pts.push(v.y, down);
+        }
+      }
+      for (const c of o.children) visit(c);
+    };
+    for (const c of this.body.children) visit(c);
+    // upper pedal + crank arm on the down side
+    pts.push(0.27 + 0.17 + 0.01, 0.13 + 0.045, 0.27 + 0.17, 0.094);
+    let lim = Math.PI / 2;
+    for (let i = 0; i < pts.length; i += 2) if (pts[i] > 0.15) lim = Math.min(lim, Math.atan2(pts[i], pts[i + 1]));
+    lim -= 0.015;
+    let lift = 0;
+    const c = Math.cos(lim);
+    const sn = Math.sin(lim);
+    for (let i = 0; i < pts.length; i += 2) lift = Math.max(lift, pts[i + 1] * sn - pts[i] * c);
+    this.steerPivot.quaternion.copy(q0);
+    this._crashFit[key] = { roll: lim, lift };
+    return this._crashFit[key];
+  }
+
+  /** Crank angle that puts the pedal on the side the bike lies on at the top. */
+  crashCrank(roll) {
+    return roll > 0 ? Math.PI : 0;
+  }
+
+  /**
+   * Rider thrown clear of the bike: the rider group is placed at the crash's hip frame (world),
+   * limbs blend from the riding pose to bracing in the air and sprawled on the deck.
+   * Call after pose() and after the root's world matrix is up to date.
+   */
+  crashPose(C, dt) {
+    const R = this._pose;
+    if (!this._crash) {
+      // start from the pose drawn on the last riding frame
+      this._crash = {
+        hip: R.hip.clone(),
+        shoulder: R.shoulder.clone(),
+        head: this.head.position.clone(),
+        hands: this.arms.map((a) => a.glove.position.clone()),
+        feet: this.legs.map((l) => l.foot.position.clone()),
+      };
+      this.rider.matrixAutoUpdate = false;
+    }
+    const X = this._crash;
+    const k = Math.min(1, dt * 10);
+    const g = C.ground;
+    const fall = C.kind === 'fall';
+    // targets relative to the hip, rider upright: brace (reaching forward, knees up) -> sprawl
+    const T = R.target;
+    const hip0 = CRASH_HIP;
+    X.hip.lerp(hip0, k);
+    T.set(0, 0.47 + 0.05 * g, 0.12 - 0.1 * g).add(hip0);
+    X.shoulder.lerp(T, k);
+    T.set(0, 0.15 + 0.015 * g, 0.08 - 0.05 * g).add(X.shoulder);
+    X.head.lerp(T, k);
+    for (let i = 0; i < 2; i++) {
+      const sx = this.arms[i].sx;
+      const wave = fall ? Math.sin(C.t * 9 + i * 2) * 0.15 : 0;
+      T.set(sx * (0.3 + 0.16 * g), 0.55 + 0.23 * g + wave, 0.42 - 0.36 * g).add(hip0);
+      X.hands[i].lerp(T, k);
+      const lx = this.legs[i].sx;
+      T.set(lx * (0.17 + 0.05 * g), -0.6 - 0.24 * g, 0.22 - 0.24 * g - (fall ? wave : 0)).add(hip0);
+      X.feet[i].lerp(T, k);
+    }
+    const hip = X.hip;
+    const shoulder = X.shoulder;
+    this.hips.position.copy(hip);
+    this.torso.position.addVectors(hip, shoulder).multiplyScalar(0.5);
+    this.torso.quaternion.setFromUnitVectors(UP, R.dir.subVectors(shoulder, hip).normalize());
+    this.torso.scale.set(1, 1, 1);
+    this.head.position.copy(X.head);
+    this.head.rotation.set(-0.15 - 0.3 * g, 0, 0);
+    this.neck.position.lerpVectors(shoulder, X.head, 0.45);
+    this.neck.rotation.set(0.3, 0, 0);
+    for (let i = 0; i < 2; i++) {
+      const L = this.legs[i];
+      R.joint.copy(hip);
+      R.joint.x += L.sx * 0.095;
+      R.end.copy(X.feet[i]);
+      solveIK(R.joint, R.end, 0.43, 0.43, R.pole.set(L.sx * 0.15, 0.1, 1).normalize(), R.mid);
+      aim(L.thigh, R.joint, R.mid);
+      aim(L.shin, R.mid, R.end);
+      L.foot.position.copy(R.end);
+      L.foot.rotation.set(0.5 + 0.6 * g, 0, 0);
+      const A = this.arms[i];
+      R.joint.copy(shoulder);
+      R.joint.x += A.sx * 0.19;
+      R.end.copy(X.hands[i]);
+      solveIK(R.joint, R.end, 0.29, 0.28, R.pole.set(A.sx, -0.4, -0.3).normalize(), R.mid);
+      aim(A.upper, R.joint, R.mid);
+      aim(A.fore, R.mid, R.end);
+      A.upper.scale.set(1, 1, 1);
+      A.glove.position.copy(R.end);
+    }
+    // rider frame: world hip frame from the crash, expressed in the bike body's frame
+    const W = _m3.copy(C.rider()).multiply(_m2.makeTranslation(-hip0.x, -hip0.y, -hip0.z));
+    // keep every joint (with its thickness) on top of the deck whatever the limbs are doing
+    let lift = 0;
+    const pts = CRASH_PTS;
+    pts[0].p.copy(hip);
+    pts[1].p.copy(shoulder);
+    pts[2].p.copy(X.head);
+    for (let i = 0; i < 2; i++) {
+      pts[3 + i].p.copy(this.arms[i].glove.position);
+      pts[5 + i].p.copy(this.legs[i].foot.position);
+      pts[7 + i].p.copy(this.legs[i].shin.position);
+      pts[9 + i].p.copy(this.arms[i].fore.position);
+    }
+    for (const q of pts) {
+      R.tmp.copy(q.p).applyMatrix4(W);
+      lift = Math.max(lift, C.deckY(R.tmp.x, R.tmp.z) + q.r - R.tmp.y);
+    }
+    if (lift > 0) W.elements[13] += lift;
+    this.body.updateWorldMatrix(true, false);
+    _m1.copy(this.body.matrixWorld).invert().multiply(W);
+    this.rider.matrix.copy(_m1);
+    this.rider.matrixWorldNeedsUpdate = true;
+  }
+
+  /** Back on the bike (respawn): the riding pose takes over again on the next pose(). */
+  endCrash() {
+    if (!this._crash) return;
+    this._crash = null;
+    this.rider.matrixAutoUpdate = true;
+    this.rider.position.set(0, 0, 0);
+    this.rider.quaternion.identity();
+    this.rider.scale.set(1, 1, 1);
+    this.rider.updateMatrix();
+  }
 }
+
+const CRASH_HIP = new THREE.Vector3(0, 0.975, -0.24);
+// joints checked against the deck in a crash, with their radius (hip, shoulder, head, hands, feet, knees, elbows)
+const CRASH_PTS = [0.13, 0.13, 0.12, 0.04, 0.04, 0.05, 0.05, 0.06, 0.06, 0.05, 0.05].map((r) => ({ p: new THREE.Vector3(), r }));
+const _m1 = new THREE.Matrix4();
+const _m2 = new THREE.Matrix4();
+const _m3 = new THREE.Matrix4();

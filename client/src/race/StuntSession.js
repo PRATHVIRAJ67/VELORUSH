@@ -13,6 +13,7 @@ import { objectiveProgress, starsFor } from '@shared/stunts/objectives.js';
 import { STUNT_BIKE_BY_ID } from '@shared/stunts/bikes.js';
 import { NITRO } from '@shared/stunts/config.js';
 import { RiderView } from '../entities/RiderView.js';
+import { CrashAnim } from '../entities/CrashAnim.js';
 import { skyName } from '../world/StuntWorld.js';
 import { SessionBase } from './SessionBase.js';
 import { addXp } from '../core/Storage.js';
@@ -44,9 +45,8 @@ export class StuntSession extends SessionBase {
     this.doneSent = false;
     this.serverRows = null;
     this.events = [];
-    this.pose = { pitch: 0, spin: 0, drop: 0 };
-    this.dropV = 0;
-    this.fall = 0;
+    this.pose = { pitch: 0, spin: 0, crash: null };
+    this.warned = new Set();
     let slot = 0;
     let bikeId = sd.bikeId;
     if (net) {
@@ -135,27 +135,40 @@ export class StuntSession extends SessionBase {
       this.handleBikeEvents(run.bike, consumeEvents(run.bike));
       this._pose(dt);
       this.view.update(run.bike, dt, app.time, app.renderer.camera.position);
+      this._crashFx(this.pose.crash, this.view, true);
+      this._narrowWarn(run.bike.u);
       if (this.isNet) this._send(dt);
     }
   }
 
-  _pose(dt) {
+  _pose() {
     const S = this.run.state;
     const b = S.bike;
     this.pose.pitch = S.T.pitch;
     this.pose.spin = S.T.spin;
     b.celebrate = S.T.styleOn || (this.phase === 'finished' && S.result?.complete);
-    // crash: the bike falls over on its side until the respawn
-    const fallT = S.phase === 'crashed' ? 1 : 0;
-    this.fall += (fallT - this.fall) * Math.min(1, dt * 9);
-    if (S.phase === 'crashed') b.lean = this.fall * 1.3 * (this._fallSide || 1);
-    // missed a gap: the rider drops through the hole towards the clouds (visual only)
-    if (S.phase === 'crashed' && this._intoGap) {
-      this.dropV += 14 * dt;
-      this.pose.drop = Math.min(60, this.pose.drop + this.dropV * dt);
-    } else if (S.phase !== 'crashed') {
-      this.pose.drop = 0;
-      this.dropV = 0;
+    if (S.phase !== 'crashed') this.pose.crash = null;
+  }
+
+  /** Dust where the bike / rider hit the planks (a few soft puffs, no sparks). */
+  _crashFx(C, view, local) {
+    if (!C || !C.fx.length) return;
+    const fx = this.app.effects;
+    for (const p of C.fx) {
+      if (!p.n) continue;
+      const pos = p.bike ? view.model.root.position : p;
+      fx.dust(pos, p.n, p.k);
+      if (local && !p.bike && p.k < 1) this.app.audio.play('bump');
+    }
+    C.fx.length = 0;
+  }
+
+  /** Short heads-up before a narrow plank or a narrow landing platform. */
+  _narrowWarn(u) {
+    for (const bm of this.course.beams) {
+      if (this.warned.has(bm) || u < bm.s0 - 34 || u > bm.s0) continue;
+      this.warned.add(bm);
+      this.app.ui.stunt?.flashLine(bm.reason === 'Missed the platform' ? 'NARROW LANDING' : 'NARROW PLANK');
     }
   }
 
@@ -178,16 +191,17 @@ export class StuntSession extends SessionBase {
         app.effects.burst(pos, '#ffd000', 24, 4, 0.1, 0.6, true, app.focusVel());
         ui.stunt?.flashLine('RING!');
         break;
-      case 'crash':
-        this._fallSide = Math.random() < 0.5 ? -1 : 1;
-        this._intoGap = /gap/i.test(e.reason);
+      case 'crash': {
+        const S = this.run.state;
+        this.pose.crash = new CrashAnim(this.course, S.bike, { v: e.v, pitch: S.T.pitch, spin: S.T.spin, reason: e.reason, pit: e.pit });
         app.audio.play('wall');
-        app.effects.burst(pos, '#ffd27a', 26, 5, 0.1, 0.6, true, app.focusVel());
         ui.message('CRASH', e.reason, 'small');
         ui.stunt?.comboBroken();
         break;
+      }
       case 'respawn':
-        this.fall = 0;
+        this.pose.crash = null;
+        this.view.update(this.run.bike, 0, app.time, null);
         app.chase.snapBehind(app._buildTarget());
         if (e.manual) ui.message('RESPAWN', e.gate >= 0 ? 'Back to the last checkpoint' : 'Back to the start', 'small');
         break;
@@ -450,11 +464,11 @@ export class StuntSession extends SessionBase {
 
   onSnap(m) {
     for (const p of m.p) {
-      const [id, u, d, yaw, v, y, lean, steer, fl, , , , , , , tp, ts, , score] = p;
+      const [id, u, d, yaw, v, y, lean, steer, fl, , , , , , , tp, ts, sfl, score] = p;
       if (id === this.net.id && !this.spectator) continue;
       const r = this.remotes.get(id);
       if (!r) continue;
-      r.buf.push({ ts: m.ts, u, d, yaw, v, y, lean, steer, fl, tp: tp || 0, ts2: ts || 0 });
+      r.buf.push({ ts: m.ts, u, d, yaw, v, y, lean, steer, fl, tp: tp || 0, ts2: ts || 0, sfl: sfl || 0 });
       if (r.buf.length > 30) r.buf.shift();
       r.finished = !!(fl & FL.FINISHED);
       r.dnf = !!(fl & FL.DNF);
@@ -498,9 +512,19 @@ export class StuntSession extends SessionBase {
         st.boostTimer = a.fl & FL.BOOST ? 0.3 : 0;
         if (st.throttle) st.crank += Math.min(11.5, 3.5 + st.v * 0.45) * dt;
         st.wheel += (st.v / 0.34) * dt;
+        // crash flag (sent with every stunt state): play the same crash animation for this rider
+        const crashed = !!(a.sfl & 1);
+        if (crashed && !st.trick.crash) {
+          const pit = this.course.pitAt(st.s, st.d);
+          st.trick.crash = new CrashAnim(this.course, st, { v: r.lastV || 0, pitch: st.trick.pitch, spin: st.trick.spin, reason: '', pit });
+        } else if (!crashed) {
+          st.trick.crash = null;
+          r.lastV = st.v;
+        }
       }
       r.view.setVisible(!r.dnf);
       r.view.update(st, dt, this.app.time, cam);
+      this._crashFx(st.trick.crash, r.view, false);
     }
   }
 

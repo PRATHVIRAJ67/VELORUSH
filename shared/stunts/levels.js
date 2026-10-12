@@ -2,8 +2,10 @@
 // objectives, star score thresholds, coin reward. Positions are resolved by course.js.
 // Every level is checked by tools/stunt-validate.mjs (headless solver with the real physics).
 //
-// Feature specs: {t:'kick'|'table'|'gap'|'step'|'deck'|'rollers'|'barrels'|'pad'|'ring'|'target', ...}
+// Feature specs: {t:'kick'|'table'|'gap'|'step'|'deck'|'rollers'|'barrels'|'pad'|'beam'|'ring'|'target', ...}
 // ring/target attach to the jump before them. Objectives: see objectives.js.
+// Narrow sections: {t:'beam', len, w, d?, amp?, waves?} is a plank path over open sky; gap/step
+// take landW (a narrow landing platform); any feature with beam:true stands on a plank of its width.
 
 const L = [];
 let n = 0;
@@ -91,10 +93,10 @@ level({
 });
 level({
   name: 'Barrel Roll',
-  desc: 'Weave through the barrel rows without a scratch, then jump the last one.',
+  desc: 'Weave through the barrel rows, cross the plank bridge without a scratch, then jump the last one.',
   map: 'forest',
   from: 560,
-  features: [{ t: 'barrels', n: 3, space: 18, offset: 1.6 }, { t: 'kick', h: 1.1 }, { t: 'barrels', n: 2, space: 18, offset: 1.6 }, { t: 'table', h: 1.3, top: 6 }],
+  features: [{ t: 'barrels', n: 3, space: 18, offset: 1.6 }, { t: 'beam', len: 26, w: 3.6, gap: 12 }, { t: 'kick', h: 1.1 }, { t: 'barrels', n: 2, space: 18, offset: 1.6 }, { t: 'table', h: 1.3, top: 6 }],
   objectives: { clean: 0 },
   stars: [2000, 2400],
   reward: 190,
@@ -217,10 +219,10 @@ level({
 });
 level({
   name: 'Narrow Escape',
-  desc: 'The tight forest road: a barrel slalom, then gaps with nowhere to bail.',
+  desc: 'The tight forest road: a barrel slalom, a gap onto a narrow platform, then a snaking plank with nowhere to bail.',
   map: 'forest',
   from: 560,
-  features: [{ t: 'barrels', n: 3, space: 20, offset: 1.5, lane: 2.4 }, { t: 'gap', h: 1.2, gap: 5 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'barrels', n: 2, space: 20, offset: 1.5, lane: 2.4 }],
+  features: [{ t: 'barrels', n: 3, space: 20, offset: 1.5, lane: 2.4 }, { t: 'gap', h: 1.2, gap: 5 }, { t: 'gap', h: 1.3, gap: 6, landW: 3.4 }, { t: 'beam', len: 44, w: 2.8, amp: 1.2, waves: 1, gap: 20, cp: true, cpLead: 18 }, { t: 'barrels', n: 2, space: 20, offset: 1.5, lane: 2.4 }],
   objectives: { clean: 1, dist: 12 },
   stars: [2200, 3200],
   reward: 360,
@@ -309,10 +311,10 @@ level({
 });
 level({
   name: 'Forest Flow',
-  desc: 'Rollers into tables in the pines: three perfect landings.',
+  desc: 'Rollers into tables in the pines, the second set on a narrow plank: three perfect landings.',
   map: 'forest',
   from: 560,
-  features: [{ t: 'rollers', n: 3 }, { t: 'table', h: 1.3, top: 6 }, { t: 'rollers', n: 3, h: 0.6 }, { t: 'table', h: 1.5, top: 6 }],
+  features: [{ t: 'rollers', n: 3 }, { t: 'table', h: 1.3, top: 6 }, { t: 'rollers', n: 3, h: 0.6, w: 3.2, beam: true }, { t: 'table', h: 1.5, top: 6 }],
   objectives: { perfect: 3, airTotal: 2.5 },
   stars: [8500, 10000],
   reward: 450,
@@ -419,10 +421,10 @@ level({
 });
 level({
   name: 'Step Ladder',
-  desc: 'Four climbing step-ups, landed perfectly.',
+  desc: 'Four climbing step-ups, the last two onto narrow platforms, landed perfectly.',
   map: 'city',
   from: 80,
-  features: [{ t: 'step', h: 1.2, gap: 4, h2: 1.6, deck: 8 }, { t: 'step', h: 1.4, gap: 5, h2: 1.9, deck: 8 }, { t: 'step', h: 1.6, gap: 6, h2: 2.2, deck: 8 }, { t: 'step', h: 1.8, gap: 6, h2: 2.5, deck: 8 }],
+  features: [{ t: 'step', h: 1.2, gap: 4, h2: 1.6, deck: 8 }, { t: 'step', h: 1.4, gap: 5, h2: 1.9, deck: 8 }, { t: 'step', h: 1.6, gap: 6, h2: 2.2, deck: 8, landW: 3.6 }, { t: 'step', h: 1.8, gap: 6, h2: 2.5, deck: 8, landW: 3.2 }],
   objectives: { perfect: 4, clean: 1 },
   stars: [6000, 9700],
   reward: 650,
@@ -520,10 +522,10 @@ level({
 });
 level({
   name: 'Forest Frenzy',
-  desc: 'Barrels, kickers, a gap and rollers in the pines with a x2 combo.',
+  desc: 'Barrels, a zig-zag plank, then kickers, a gap and rollers in the pines with a x2 combo.',
   map: 'forest',
   from: 560,
-  features: [{ t: 'barrels', n: 3, space: 18, offset: 1.5, lane: 2.4 }, { t: 'kick', h: 1.1, gap: 10 }, { t: 'kick', h: 1.2, gap: 10 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'rollers', n: 3 }, { t: 'table', h: 1.4, top: 6 }],
+  features: [{ t: 'barrels', n: 3, space: 18, offset: 1.5, lane: 2.4 }, { t: 'beam', len: 56, w: 2.6, amp: 1.0, waves: 1.5, gap: 20 }, { t: 'kick', h: 1.1, gap: 10 }, { t: 'kick', h: 1.2, gap: 10 }, { t: 'gap', h: 1.3, gap: 6 }, { t: 'rollers', n: 3 }, { t: 'table', h: 1.4, top: 6 }],
   objectives: { combo: 3, clean: 1 },
   stars: [9200, 14000],
   reward: 920,
@@ -534,7 +536,8 @@ level({
   map: 'canyon',
   from: 150,
   features: [
-    { t: 'gap', h: 1.4, gap: 9 }, { t: 'barrels', n: 3, space: 20, offset: 2, lane: 2.6 },
+    { t: 'gap', h: 1.4, gap: 9, landW: 3.2 }, { t: 'barrels', n: 3, space: 20, offset: 2, lane: 2.6 },
+    { t: 'beam', len: 30, w: 3.0, d: 1.8, gap: 20 },
     { t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 24, gap: 80 }, { t: 'ring', f: 0.45 },
     { t: 'kick', h: 1.4, v: 18 }, { t: 'target', len: 6 },
     { t: 'deck', h: 3.6, deck: 12, lip: 1.0, v: 24 },

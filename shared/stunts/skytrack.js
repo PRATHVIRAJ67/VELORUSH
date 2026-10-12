@@ -16,7 +16,7 @@ export const SKY_START = 60; // course start (spawn) s
 const LIMIT = SKY_ROAD.width / 2 + SKY_ROAD.shoulder - 0.45;
 
 // slope (rise per metre) of the straight carrying each feature type: big drops go down hill
-const SLOPE = { kick: [-0.03, 0.0], table: [-0.03, 0.0], gap: [-0.04, -0.01], step: [-0.02, 0.0], deck: [-0.09, -0.05], rollers: [-0.01, 0.02], barrels: [-0.01, 0.02], pad: [-0.02, 0.0] };
+const SLOPE = { kick: [-0.03, 0.0], table: [-0.03, 0.0], gap: [-0.04, -0.01], step: [-0.02, 0.0], deck: [-0.09, -0.05], rollers: [-0.01, 0.02], barrels: [-0.01, 0.02], pad: [-0.02, 0.0], beam: [-0.01, 0.01] };
 
 function hashStr(s) {
   let h = 2166136261;
@@ -59,12 +59,23 @@ export function skyTrackDef(level, featureSpan) {
   push();
   // run-up (spawn at SKY_START) — long enough that the loop closure never reaches it
   straight(SKY_START + (level.runup ?? 70) + 40, -0.01);
-  const feats = level.features.filter((f) => f.t !== 'ring' && f.t !== 'target');
+  // narrow beams ride on the straight of the feature before them: the route (every bend and its
+  // seeded shape) stays exactly what the level had without them, only that straight gets longer
+  const all = level.features.filter((f) => f.t !== 'ring' && f.t !== 'target');
+  const extra = new Map();
+  let host = null;
+  for (const f of all) {
+    if (f.t === 'beam' && host) {
+      const sp = featureSpan(f, LIMIT);
+      extra.set(host, (extra.get(host) || 0) + sp.len + sp.post + (f.gap ?? 15) + 16);
+    } else host = f;
+  }
+  const feats = all.filter((f) => !(f.t === 'beam' && f !== all[0]));
   feats.forEach((f, i) => {
     const sp = featureSpan(f, LIMIT);
     const aimed = level.features[level.features.indexOf(f) + 1]?.t === 'ring' || level.features[level.features.indexOf(f) + 1]?.t === 'target';
     const [lo, hi] = SLOPE[f.t] || [-0.02, 0];
-    const need = 18 + sp.len + sp.post + (aimed ? 30 : 0) + (f.gap ?? 15) + 26;
+    const need = 18 + sp.len + sp.post + (aimed ? 30 : 0) + (f.gap ?? 15) + 26 + (extra.get(f) || 0);
     const r = rng();
     straight(need, f.slope ?? lo + (hi - lo) * r); // a level can ask for a steeper drop (more air)
     if (i < feats.length - 1) {

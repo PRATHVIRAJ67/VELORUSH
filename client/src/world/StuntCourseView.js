@@ -1,11 +1,13 @@
 // Geometry of one stunt sky course, generated from the level's course data: a wooden plank deck
-// following the level's own route (with open holes where the gaps are), guard rails, timber
+// following the level's own route (with open holes where the gaps are, narrow plank beams over open
+// sky where the level has them), guard rails, timber
 // trestles reaching down into the clouds, wooden kickers / tables / decks / step-ups exactly
 // matching the physics height function, barrels, nitro pads, rings, landing targets, checkpoint
 // gates and the finish platform. Built when the level loads, disposed with it.
 import * as THREE from 'three';
 import { makeBoostPad, makeBanner, makeChecker, canvas, toTexture } from './textures.js';
 import { makeRng } from '@shared/math.js';
+import { beamCenter, beamHalf } from '@shared/stunts/course.js';
 
 const _w = {};
 const _c = {};
@@ -97,10 +99,19 @@ export class StuntCourseView {
     };
     this._deck();
     this._trestles();
+    this._beams();
     for (const f of course.features) {
       if (!f.jump && f.t !== 'rollers') continue;
       const segs = course.segs.filter((g) => g.s0 >= f.s0 - 0.01 && g.s1 <= f.s1 + 0.01);
-      if (segs.length) this._solid(f.s0, f.s1, segs[0].d0, segs[0].d1);
+      // one solid per width: a narrow landing platform is narrower than its kicker
+      const parts = new Map();
+      for (const g of segs) {
+        const k = g.d0 + ':' + g.d1;
+        const p = parts.get(k);
+        if (p) p.s1 = Math.max(p.s1, g.s1);
+        else parts.set(k, { s0: g.s0, s1: g.s1, d0: g.d0, d1: g.d1 });
+      }
+      for (const p of parts.values()) this._solid(p.s0, p.s1, p.d0, p.d1);
     }
     this._barrels();
     this._pads();
@@ -110,19 +121,93 @@ export class StuntCourseView {
     if (this.night) this._lamps();
   }
 
-  /** Ridden road ranges with the full-width gaps cut out. */
+  /** Ridden road ranges with the full-width gaps (and the stretches under narrow beams) cut out. */
   _deckRanges() {
     const c = this.course;
     const lim = this.track.limit;
-    const holes = c.pits.filter((p) => p.d0 <= -lim + 0.1 && p.d1 >= lim - 0.1).map((p) => [p.s0, p.s1]).sort((a, b) => a[0] - b[0]);
+    const holes = c.pits.filter((p) => p.d0 <= -lim + 0.1 && p.d1 >= lim - 0.1).map((p) => [p.s0, p.s1]);
+    for (const bm of c.beams) holes.push([bm.s0, bm.s1]);
+    holes.sort((a, b) => a[0] - b[0]);
     const out = [];
     let s = c.startU - 45;
     for (const [a, b] of holes) {
-      out.push([s, a]);
-      s = b;
+      if (a > s) out.push([s, a]);
+      s = Math.max(s, b);
     }
     out.push([s, c.finishU + 70]);
     return out.filter(([a, b]) => b - a > 0.5);
+  }
+
+  /** Narrow plank beams over open sky: deck strip, plank sides, hazard edges, timber posts. */
+  _beams() {
+    const beams = this.course.beams;
+    if (!beams.length) return;
+    const W = this.track.halfWidth + this.track.shoulder;
+    const th = 0.35;
+    const posts = [];
+    const floor = this._floor();
+    for (const bm of beams) {
+      const n = Math.max(2, Math.ceil((bm.s1 - bm.s0) / 0.6));
+      const top = [];
+      const uv = [];
+      const sides = [];
+      const edges = [];
+      let prev = null;
+      const at = (s) => {
+        const c = beamCenter(bm, s);
+        const h = beamHalf(bm, s);
+        const a = Math.max(-W, c - h);
+        const b = Math.min(W, c + h);
+        const L = this.track.toWorld(s, a, {});
+        const R = this.track.toWorld(s, b, {});
+        // hazard edge strips only where the plank is narrower than the deck
+        const L2 = this.track.toWorld(s, a + 0.14, {});
+        const R2 = this.track.toWorld(s, b - 0.14, {});
+        return { L: [L.x, L.y, L.z], R: [R.x, R.y, R.z], Lb: [L.x, L.y - th, L.z], Rb: [R.x, R.y - th, R.z], L2: [L2.x, L2.y + 0.012, L2.z], R2: [R2.x, R2.y + 0.012, R2.z], Lt: [L.x, L.y + 0.012, L.z], Rt: [R.x, R.y + 0.012, R.z], narrow: b - a < W * 2 - 0.3, v: s / 3, u0: (a + W) / (2 * W), u1: (b + W) / (2 * W) };
+      };
+      for (let i = 0; i <= n; i++) {
+        const sv = bm.s0 + ((bm.s1 - bm.s0) * i) / n;
+        const row = at(sv);
+        if (prev) {
+          top.push(...prev.L, ...prev.R, ...row.L, ...prev.R, ...row.R, ...row.L);
+          uv.push(prev.u0, prev.v, prev.u1, prev.v, row.u0, row.v, prev.u1, prev.v, row.u1, row.v, row.u0, row.v);
+          sides.push(...prev.L, ...row.L, ...prev.Lb, ...prev.Lb, ...row.L, ...row.Lb);
+          sides.push(...prev.R, ...prev.Rb, ...row.R, ...prev.Rb, ...row.Rb, ...row.R);
+          sides.push(...prev.Lb, ...row.Lb, ...prev.Rb, ...prev.Rb, ...row.Lb, ...row.Rb);
+          if (prev.narrow && row.narrow) {
+            edges.push(...prev.Lt, ...prev.L2, ...row.Lt, ...prev.L2, ...row.L2, ...row.Lt);
+            edges.push(...prev.R2, ...prev.Rt, ...row.R2, ...prev.Rt, ...row.Rt, ...row.R2);
+          }
+        }
+        prev = row;
+      }
+      // open ends facing the sky (a platform straight after a gap)
+      for (const [sv, open] of [[bm.s0, bm.tin <= 0], [bm.s1, bm.tout <= 0]]) {
+        if (!open) continue;
+        const r = at(sv);
+        sides.push(...r.L, ...r.R, ...r.Rb, ...r.L, ...r.Rb, ...r.Lb);
+      }
+      this._mesh(top, uv, this.mats.deck, true);
+      this._mesh(sides, null, this.mats.side, false);
+      if (edges.length) {
+        const m = this._mesh(edges, null, this.mats.stripe, false);
+        m.castShadow = false;
+      }
+      // a single timber post under the plank every few metres, down into the clouds
+      for (let sv = bm.s0 + 3; sv < bm.s1 - 1; sv += 9) posts.push({ s: sv, d: beamCenter(bm, sv), y: -th, len: this.track.sample(sv, _c).y - floor });
+    }
+    const geo = this._keep(new THREE.BoxGeometry(0.34, 1, 0.34).translate(0, -0.5, 0));
+    this._instances(geo, this.mats.timber, posts, (o, m) => m.scale.set(1, o.len, 1));
+  }
+
+  /** Height the trestles reach down to (into the cloud sea). */
+  _floor() {
+    if (this.floorY !== undefined) return this.floorY;
+    const c = this.course;
+    let minY = Infinity;
+    for (let s = c.startU; s < c.finishU; s += 10) minY = Math.min(minY, this.track.sample(s, _c).y);
+    this.floorY = minY - 95;
+    return this.floorY;
   }
 
   _deck() {
@@ -188,11 +273,8 @@ export class StuntCourseView {
 
   /** Timber trestles under the deck reaching down into the cloud sea. */
   _trestles() {
-    const c = this.course;
     const W = this.track.halfWidth + this.track.shoulder;
-    let minY = Infinity;
-    for (let s = c.startU; s < c.finishU; s += 10) minY = Math.min(minY, this.track.sample(s, _c).y);
-    const floor = minY - 95;
+    const floor = this._floor();
     const legs = [];
     const braces = [];
     for (const [a, b] of this._deckRanges()) {

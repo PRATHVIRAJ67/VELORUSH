@@ -110,7 +110,7 @@ export function judgeLanding(T, stats, { pit = false, wall = false } = {}) {
   const spins = Math.abs(Math.round(T.spin / TAU));
   let reason = '';
   if (wall) reason = 'Cased the landing';
-  else if (pit) reason = 'Fell into the gap';
+  else if (pit) reason = typeof pit === 'string' ? pit : 'Fell into the gap';
   else if (Math.abs(rp) > tol) reason = Math.abs(T.pitch) > Math.PI && rp * Math.sign(T.pitch) > 0 ? 'Over-rotated' : 'Under-rotated';
   else if (Math.abs(rs) > tol) reason = 'Landed sideways';
   else if (T.styleOn) reason = 'Hands off the bars';

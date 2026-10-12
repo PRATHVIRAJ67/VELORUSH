@@ -1,6 +1,6 @@
 // Stunt courses: a level is a stretch of one of the six existing roads plus data-placed
-// features (kickers, tabletops, gaps, decks, step-ups, rollers, barrels, rings, landing
-// targets, nitro pads). Features only exist in a wrapper track handed to the physics in stunt
+// features (kickers, tabletops, gaps, decks, step-ups, rollers, barrels, narrow beams, rings,
+// landing targets, nitro pads). Features only exist in a wrapper track handed to the physics in stunt
 // mode — the racing track object, its ramps and every racing code path stay untouched.
 //
 // Placement is deterministic (same result on client, server and the solver): each feature
@@ -18,7 +18,32 @@ const SLOPE_UP = 0.28; // kicker face (physics clamps launch vy at 0.3 * v)
 const SLOPE_LAND = 0.17; // landing ramps
 const FULL = 'full';
 // how straight the road must be around a feature (lateral drift in the air stays small)
-const CURV_LIMIT = { kick: 0.011, table: 0.011, gap: 0.0065, step: 0.0065, deck: 0.009, rollers: 0.02, barrels: 0.02, pad: 0.03 };
+const CURV_LIMIT = { kick: 0.011, table: 0.011, gap: 0.0065, step: 0.0065, deck: 0.009, rollers: 0.02, barrels: 0.02, pad: 0.03, beam: 0.012 };
+
+// ------------------------------------------------------------------ narrow beams
+// A beam replaces the full-width deck with a plank path over open sky: width w centred on
+// d + amp * sin(2pi * waves * x) (x = 0..1 along the core), widening back to the full deck over
+// `tin` / `tout` metres at its ends. Leaving it is a fall, exactly like a gap.
+const BEAM_OPEN = 6.2; // half-width at the open ends (beyond the physics limit and the deck edge)
+
+/** Centre line d of a beam at road position s. */
+export function beamCenter(bm, s) {
+  const a = bm.s0 + bm.tin;
+  const L = bm.s1 - bm.tout - a;
+  if (!bm.amp || L <= 0 || s <= a || s >= a + L) return bm.d;
+  return bm.d + bm.amp * Math.sin(Math.PI * 2 * bm.waves * ((s - a) / L));
+}
+
+/** Half-width of a beam at road position s (tapers open at the ends). */
+export function beamHalf(bm, s) {
+  const hw = bm.w / 2;
+  let k = 1;
+  if (bm.tin > 0 && s < bm.s0 + bm.tin) k = (s - bm.s0) / bm.tin;
+  else if (bm.tout > 0 && s > bm.s1 - bm.tout) k = (bm.s1 - s) / bm.tout;
+  k = Math.max(0, Math.min(1, k));
+  k = k * k * (3 - 2 * k);
+  return BEAM_OPEN + (hw - BEAM_OPEN) * k;
+}
 
 // ------------------------------------------------------------------ map suitability
 const maskCache = new Map();
@@ -85,14 +110,25 @@ function expand(f, s, track) {
   const pits = [];
   const obstacles = [];
   const pads = [];
+  const beams = [];
+  const beam = (s0, s1, bw, bd, reason, o = {}) => beams.push({ s0, s1, w: bw, d: bd, amp: o.amp || 0, waves: o.waves ?? 1, tin: o.tin ?? 4, tout: o.tout ?? 4, reason });
+  // narrow landing deck after a gap / step-up (landW): the platform stands alone in the sky
+  const landW = f.landW ? Math.min(w, f.landW) : 0;
+  const L0 = landW ? d - landW / 2 : d0;
+  const L1 = landW ? d + landW / 2 : d1;
   // segments are quadratic in s: h = h0 + a*x + b*x^2 (x = metres into the segment)
   const up = (a, h0, h1, slope = SLOPE_UP) => {
     const len = Math.abs(h1 - h0) / slope;
     segs.push({ s0: a, s1: a + len, d0, d1, h0, a: (h1 - h0) / len, b: 0 });
     return a + len;
   };
-  const flat = (a, len, h) => {
-    segs.push({ s0: a, s1: a + len, d0, d1, h0: h, a: 0, b: 0 });
+  const flat = (a, len, h, e0 = d0, e1 = d1) => {
+    segs.push({ s0: a, s1: a + len, d0: e0, d1: e1, h0: h, a: 0, b: 0 });
+    return a + len;
+  };
+  const down = (a, h0, slope = SLOPE_LAND, e0 = d0, e1 = d1) => {
+    const len = h0 / slope;
+    segs.push({ s0: a, s1: a + len, d0: e0, d1: e1, h0, a: -h0 / len, b: 0 });
     return a + len;
   };
   // rounded crest from `slope` to level over L metres: the bike rolls over it instead of launching
@@ -124,8 +160,10 @@ function expand(f, s, track) {
       lipS = e;
       pits.push({ s0: e, s1: e + f.gap, d0, d1 });
       e += f.gap;
-      e = flat(e, 3, f.land ?? f.h);
-      e = up(e, f.land ?? f.h, 0, SLOPE_LAND);
+      const l0 = e;
+      e = flat(e, 3, f.land ?? f.h, L0, L1);
+      e = down(e, f.land ?? f.h, SLOPE_LAND, L0, L1);
+      if (landW) beam(l0, e + 9, landW, d, 'Missed the platform', { tin: 0, tout: 5 });
       post = 14;
       break;
     }
@@ -135,8 +173,10 @@ function expand(f, s, track) {
       lipS = e;
       pits.push({ s0: e, s1: e + f.gap, d0, d1 });
       e += f.gap;
-      e = flat(e, f.deck || 10, f.h2);
-      e = up(e, f.h2, 0, SLOPE_LAND);
+      const l0 = e;
+      e = flat(e, f.deck || 10, f.h2, L0, L1);
+      e = down(e, f.h2, SLOPE_LAND, L0, L1);
+      if (landW) beam(l0, e + 9, landW, d, 'Missed the platform', { tin: 0, tout: 5 });
       post = 14;
       break;
     }
@@ -187,10 +227,20 @@ function expand(f, s, track) {
       post = 6;
       break;
     }
+    case 'beam': {
+      // plank bridge over the void: straight, offset (d) or an S-curve (amp, waves)
+      e = s + f.len;
+      beam(s, e, w, d, 'Fell off the beam', { amp: f.amp, waves: f.waves, tin: f.taper ?? 5, tout: f.taper ?? 5 });
+      jump = false;
+      post = 8;
+      break;
+    }
     default:
       throw new Error('unknown stunt feature ' + f.t);
   }
-  return { segs, pits, obstacles, pads, lipS, len: e - s, post, jump, d, w };
+  // any feature can stand on a beam of its own width (e.g. rollers on a narrow plank)
+  if (f.beam && f.t !== 'beam') beam(s - (f.beamIn ?? 8), e + (f.beamOut ?? 8), w, d, 'Fell off the beam', { tin: 5, tout: 5 });
+  return { segs, pits, obstacles, pads, beams, lipS, len: e - s, post, jump, d, w };
 }
 
 /** Length of a feature along the road + the clear landing room it needs (route generator). */
@@ -206,6 +256,7 @@ function makeCourse(level, base) {
     base,
     segs: [],
     pits: [],
+    beams: [],
     obstacles: [],
     pads: [],
     rings: [],
@@ -228,9 +279,11 @@ function makeCourse(level, base) {
       }
       return h;
     },
+    /** Open sky under (s, d): '' on solid deck, else the crash reason (truthy). */
     pitAt(s, d) {
-      for (const p of this.pits) if (s >= p.s0 && s <= p.s1 && d >= p.d0 && d <= p.d1) return true;
-      return false;
+      for (const p of this.pits) if (s >= p.s0 && s <= p.s1 && d >= p.d0 && d <= p.d1) return 'Fell into the gap';
+      for (const bm of this.beams) if (s >= bm.s0 && s <= bm.s1 && Math.abs(d - beamCenter(bm, s)) > beamHalf(bm, s)) return bm.reason;
+      return '';
     },
     /** Barrel row hit: rider within the row footprint and lower than the barrels. */
     obstacleAt(s, d, above) {
@@ -339,7 +392,7 @@ export function buildCourse(level) {
       continue;
     }
     const geo0 = expand(spec, 0, base);
-    const pre = spec.t === 'barrels' || spec.t === 'pad' ? 8 : 18;
+    const pre = spec.t === 'barrels' || spec.t === 'pad' || spec.t === 'beam' ? 8 : 18;
     // jumps carrying a ring or a landing target get a straighter road and more room after them
     const nextT = level.features[fi + 1]?.t;
     const aimed = nextT === 'ring' || nextT === 'target';
@@ -367,6 +420,7 @@ export function buildCourse(level) {
     course.pits.push(...geo.pits);
     course.obstacles.push(...geo.obstacles);
     course.pads.push(...geo.pads);
+    course.beams.push(...geo.beams);
     course.segs.sort((a, b) => a.s0 - b.s0);
     course.features.push(feat);
     if (feat.jump) {
@@ -380,7 +434,7 @@ export function buildCourse(level) {
     // checkpoint (respawn point) ahead of every big feature, spaced out
     const wantGate = spec.cp ?? (feat.jump && (spec.t !== 'kick' || spec.h >= 1.8));
     // the respawn spot must be plain road: slide it back before anything built there
-    let gu = s - (level.cpLead ?? 40);
+    let gu = s - (spec.cpLead ?? level.cpLead ?? 40);
     for (let k = 0; k < 8; k++) {
       const hit = course.features.find((o) => o !== feat && gu > o.s0 - 25 && gu < o.s1 + 12);
       if (!hit) break;

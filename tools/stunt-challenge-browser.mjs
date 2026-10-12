@@ -93,7 +93,7 @@ const lobB = await B.evaluate(() => ({ lvl: document.getElementById('lobby-level
 ok(lobB.lvl === 'L01' && lobB.players === 2 && lobB.dis, `friend joined by code, sees L01, cannot change the level (${lobB.players} riders)`);
 await shot(B, '02-friend-lobby');
 
-async function rideChallenge(level, tag) {
+async function rideChallenge(level, tag, crashHost = false) {
   await A.click('#btn-ready');
   await B.evaluate(() => document.getElementById('btn-ready').click());
   await sleep(500);
@@ -103,6 +103,33 @@ async function rideChallenge(level, tag) {
   ok(same[0].lvl === level && same[1].lvl === level && same[0].map === same[1].map && same[0].remotes === 1 && same[1].remotes === 1, `${tag}: same level ${level} on ${same[0].map} loaded for both, each sees the other rider`);
   for (const p of [A, B]) await p.waitForFunction(() => window.__app.session?.phase === 'racing' || window.__app.session?.run.state.time > -0.5, { timeout: 30000 });
   await Promise.all([autopilot(A), autopilot(B)]);
+  if (crashHost) {
+    // the host under-rotates the first jump: the friend must see the host's crash play, then the respawn
+    await A.evaluate(() => {
+      const orig = window.__app.input.read;
+      let done = false;
+      window.__app.input.read = () => {
+        const inp = orig();
+        const S = window.__app.session.run.state;
+        if (S.phase === 'crashed') done = true;
+        if (!done && S.T.air && S.T.airT > 0.04) Object.assign(inp, { throttle: 0, brake: S.T.airT < 0.17 ? 1 : 0, steer: 0, sprint: false });
+        return inp;
+      };
+    });
+    const seen = await B.waitForFunction(() => {
+      const r = [...window.__app.session.remotes.values()][0];
+      return r?.st.trick.crash ? r.st.trick.crash.kind : false;
+    }, { timeout: 60000, polling: 16 }).then((h) => h.jsonValue()).catch(() => null);
+    const local = await A.evaluate(() => window.__app.session.run.state.crashReason);
+    await sleep(350);
+    await shot(B, `04b-${tag}-friend-sees-host-crash`);
+    ok(!!seen && !!local, `${tag}: host crashed (${local}); the friend's screen plays the host's crash animation (${seen})`);
+    const back = await B.waitForFunction(() => {
+      const r = [...window.__app.session.remotes.values()][0];
+      return !r.st.trick.crash && r.view.model.rider.matrixAutoUpdate && !r.view._crashing;
+    }, { timeout: 15000, polling: 50 }).then(() => true).catch(() => false);
+    ok(back, `${tag}: after the host's respawn the friend sees the host back on the bike`);
+  }
   await sleep(6000);
   await shot(A, `03-${tag}-host-riding`);
   await shot(B, `04-${tag}-friend-riding`);
@@ -130,7 +157,7 @@ await sleep(800);
 const lock = await B.evaluate(() => ({ lvl: document.getElementById('lobby-level').value, info: document.getElementById('lobby-stunt-info').textContent }));
 ok(lock.lvl === 'L05' && /Locked for you/.test(lock.info), `friend sees L05 with temporary-access note (${lock.info.match(/Locked[^—]*/)?.[0] || ''})`);
 await shot(B, '07-friend-locked-level-lobby');
-await rideChallenge('L05', 'L05');
+await rideChallenge('L05', 'L05', true);
 const after = await B.evaluate(() => {
   const sd = window.__app.profile.stunt;
   return { levels: Object.keys(sd.levels), saved: Object.keys(JSON.parse(localStorage.getItem('velorush.profile.v1')).stunt.levels) };

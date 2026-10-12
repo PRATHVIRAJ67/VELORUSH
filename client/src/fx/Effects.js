@@ -161,6 +161,16 @@ export class Effects {
     }
   }
 
+  /** Small puff of wood dust where something hits the deck (stunt crashes). k scales the spread. */
+  dust(pos, n = 6, k = 1) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = (0.6 + Math.random() * 0.9) * k;
+      const c = 0.55 + Math.random() * 0.12;
+      this.soft.emit(pos.x + Math.cos(a) * 0.15, pos.y + 0.06, pos.z + Math.sin(a) * 0.15, Math.cos(a) * sp, 0.15 + Math.random() * 0.4 * k, Math.sin(a) * sp, c, c * 0.88, c * 0.72, 0.26, 0.16 + Math.random() * 0.1, 0.4 + Math.random() * 0.25, 0.5, 2.6, 0.9);
+    }
+  }
+
   boostStream(pos, fwd, v = 0) {
     // sparks trail just behind the wheels, moving almost with the rider
     for (let i = 0; i < 2; i++) {

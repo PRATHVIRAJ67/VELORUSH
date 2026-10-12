@@ -32,6 +32,8 @@ const _eTrick = new THREE.Euler();
 const _cBase = new THREE.Vector3();
 const _cRot = new THREE.Vector3();
 const COM = 0.8;
+const _cb = {};
+const _cg = {};
 
 export class RiderView {
   constructor(scene, track, { name = 'Rider', look = {}, isLocal = false, ghost = false, night = false } = {}) {
@@ -85,6 +87,9 @@ export class RiderView {
   }
 
   update(st, dt, time, camPos) {
+    // stunt crash (CrashAnim): its own short animation until the respawn
+    if (st.trick?.crash) return this._crashUpdate(st.trick.crash, dt, time, camPos);
+    if (this._crashing) this._endCrash();
     const w = this.track.toWorld(st.s, st.d, _w);
     this.position.set(w.x, st.y, w.z);
     const root = this.model.root;
@@ -96,18 +101,14 @@ export class RiderView {
     this.pitch += (pitchT - this.pitch) * Math.min(1, dt * 10);
     root.rotation.set(this.pitch, st.yaw, 0, 'YXZ');
     const tr = st.trick;
-    if (tr && (tr.pitch || tr.spin || tr.fall || tr.drop)) {
+    if (tr && (tr.pitch || tr.spin)) {
       // flips (local X) and spins (local Y) turn the bike around its centre, not the tyre contact
       _qBase.setFromEuler(_eBase.set(this.pitch, st.yaw, 0, 'YXZ'));
-      _qTrick.setFromEuler(_eTrick.set(-tr.pitch, tr.spin, tr.fall || 0, 'YXZ'));
+      _qTrick.setFromEuler(_eTrick.set(-tr.pitch, tr.spin, 0, 'YXZ'));
       root.quaternion.copy(_qBase).multiply(_qTrick);
       _cBase.set(0, COM, 0).applyQuaternion(_qBase);
       _cRot.set(0, COM, 0).applyQuaternion(root.quaternion);
       root.position.add(_cBase).sub(_cRot);
-      if (tr.drop) {
-        root.position.y -= tr.drop;
-        this.blob.visible = false;
-      } else this.blob.visible = this.visible;
     }
     const groundY = c.y + this.track.rampHeight(st.s, st.d);
     const h = Math.max(0, st.y - groundY);
@@ -145,6 +146,68 @@ export class RiderView {
     }
   }
 
+  _crashUpdate(C, dt, time, camPos) {
+    this._crashing = true;
+    const model = this.model;
+    C.update(dt);
+    const fit = model.crashRoll(C.side);
+    const maxRoll = fit.roll;
+    const B = C.bike(maxRoll, _cb);
+    const w = this.track.toWorld(B.s, B.d, _w);
+    const root = model.root;
+    // lying on its side: the tyre sidewalls touch the deck, not sink into it
+    root.position.set(w.x, B.y + (C.kind === 'fall' ? 0 : fit.lift * Math.min(1, Math.abs(B.roll) / maxRoll)), w.z);
+    root.rotation.set(B.pitch, B.yaw, 0, 'YXZ');
+    const fall = C.kind === 'fall';
+    const deckY = C.groundAt(B.s, B.d);
+    // the camera frames bike and rider together (from the deck while they drop into the sky)
+    if (fall) this.position.set(w.x, deckY, w.z);
+    else {
+      // lean towards the rider when they end up behind the bike (closer to the camera)
+      const behind = (C.rx - w.x) * Math.sin(C.yaw) + (C.rz - w.z) * Math.cos(C.yaw) < 0;
+      const k = behind ? 0.55 : 0.3;
+      this.position.set(w.x + (C.rx - w.x) * k, B.y + (C.groundAt(C.rs_, C.rd_) - B.y) * k, w.z + (C.rz - w.z) * k);
+    }
+    this.pitch = 0;
+    this.forward.set(Math.sin(B.yaw), 0, Math.cos(B.yaw));
+    model.pose(
+      { crank: 0, crankTo: model.crashCrank(B.roll || C.side), wheel: B.wheel, steer: B.steer, lean: B.roll, v: 0, sprinting: false, braking: false, brakeT: 0, celebrate: false, airborne: false, landing: 0, bump: 0, throttle: 0 },
+      dt,
+      time,
+    );
+    root.updateMatrixWorld(true);
+    model.crashPose(C, dt);
+    // contact shadows: the fallen bike, and the rider lying beside it
+    const r = Math.abs(B.roll) / maxRoll;
+    this.blob.visible = this.visible && !fall;
+    this.blob.position.set(w.x, deckY + 0.06, w.z);
+    this.blob.rotation.set(0, B.yaw, 0);
+    this.blob.scale.set(1 + r * 0.7, 1, 1);
+    this.blob.material.opacity = this.ghost ? 0 : 0.55;
+    if (!this.blob2) {
+      this.blob2 = new THREE.Mesh(this.blob.geometry, this.blob.material.clone());
+      this.blob2.renderOrder = 1;
+      this.scene.add(this.blob2);
+    }
+    const g = C.riderGround(_cg);
+    const above = Math.max(0, C.ry - g.y - 0.15);
+    this.blob2.visible = this.visible && !fall && !this.ghost;
+    this.blob2.position.set(g.x, g.y + 0.065, g.z);
+    this.blob2.rotation.set(0, g.yaw, 0);
+    this.blob2.scale.set(1.1, 0.45 + 0.55 * g.lying, 1);
+    this.blob2.material.opacity = 0.5 * Math.max(0, 1 - above * 0.4);
+    if (camPos) model.setDetail(this.isLocal || camPos.distanceToSquared(this.position) < 45 * 45);
+    if (camPos && !this.isLocal) this.tag.visible = camPos.distanceTo(this.position) < 140 && this.visible;
+  }
+
+  _endCrash() {
+    this._crashing = false;
+    this.model.endCrash();
+    if (this.blob2) this.blob2.visible = false;
+    this.blob.visible = this.visible;
+    this.blob.scale.set(1, 1, 1);
+  }
+
   setVisible(v) {
     this.visible = v;
     this.model.root.visible = v;
@@ -156,6 +219,10 @@ export class RiderView {
     this.scene.remove(this.blob);
     this.blob.geometry.dispose();
     this.blob.material.dispose();
+    if (this.blob2) {
+      this.scene.remove(this.blob2);
+      this.blob2.material.dispose();
+    }
     this.model.root.traverse((o) => {
       if (o.isMesh) o.geometry.dispose();
     });

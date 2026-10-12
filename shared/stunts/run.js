@@ -215,8 +215,9 @@ export class StuntRun {
         if (S.phase === 'crashed') return;
       } else if (g1 - g0 > TRICK.wallStep) {
         return this.crash('Hit the ramp face');
-      } else if (course.pits.length && course.pitAt(b.s, b.d)) {
-        return this.crash('Fell into the gap');
+      } else if (course.pits.length || course.beams.length) {
+        const pit = course.pitAt(b.s, b.d);
+        if (pit) return this.crash(pit);
       }
       if (course.obstacles.length && course.obstacleAt(b.s, b.d, b.y - this.track.sample(b.s, _c).y)) return this.crash('Hit the barrels');
     }
@@ -323,6 +324,8 @@ export class StuntRun {
   crash(reason) {
     const S = this.state;
     const b = S.bike;
+    // impact facts for the client's crash animation (visual only)
+    const impact = { v: b.v, pit: !!this.course.pitAt(b.s, b.d) };
     S.phase = 'crashed';
     S.crashT = TRICK.crashTime;
     S.crashReason = reason;
@@ -339,7 +342,7 @@ export class StuntRun {
     b.frozen = true;
     b.ev.land = true;
     S.T.air = false;
-    this.emit({ type: 'crash', reason });
+    this.emit({ type: 'crash', reason, ...impact });
   }
 
   /** Back to the last checkpoint passed (or the start) with a rolling restart speed. */

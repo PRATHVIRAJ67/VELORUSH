@@ -10,6 +10,7 @@ import { clamp, wrapAngle } from '../math.js';
 import { StuntRun } from './run.js';
 import { objectiveList, OBJECTIVES } from './objectives.js';
 import { NITRO, TRICK } from './config.js';
+import { beamCenter } from './course.js';
 
 const TAU = Math.PI * 2;
 const _c = {};
@@ -70,6 +71,8 @@ export class StuntPilot {
     if (f && f.jump && f.lipS - b.u < 140) target = plan.v ?? f.designV ?? 18;
     if (f && f.t === 'rollers' && f.s0 - b.u < 40) target = Math.min(target, plan.v ?? 14);
     if (f && f.t === 'barrels' && f.s0 - b.u < 40) target = Math.min(target, plan.v ?? 10.5);
+    // narrow beams: a pace that leaves time to line up and steer (slower on the curving ones)
+    for (const bm of run.course.beams) if (bm.reason !== 'Missed the platform' && bm.s0 - b.u < 40 && b.u < bm.s1) target = Math.min(target, bm.amp ? 12 : 15);
     // corner speed (same idea as the racing AI)
     const look = Math.max(35, b.v * 4);
     for (let a = 2; a < look; a += 3) {
@@ -89,6 +92,14 @@ export class StuntPilot {
     lane = clamp(lane, -lim, lim);
     // slalom: aim straight at the open lane of the next barrel row
     const aimDist = bl !== null ? clamp(this.rowS - b.u, 2.5, 4 + b.v * 0.45) : 4 + b.v * 0.45;
+    // narrow beams / platforms: aim along the plank's centre line
+    const sAim = b.u + aimDist;
+    for (const bm of run.course.beams) {
+      if (sAim >= bm.s0 - 20 && b.u <= bm.s1) {
+        lane = clamp(beamCenter(bm, Math.max(sAim, bm.s0)), -lim, lim);
+        break;
+      }
+    }
     const aim = track.toWorld(b.s + aimDist, lane, _w);
     const me = track.toWorld(b.s, b.d, _m);
     const err = wrapAngle(Math.atan2(aim.x - me.x, aim.z - me.z) - b.yaw);
