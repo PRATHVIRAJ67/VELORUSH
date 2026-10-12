@@ -284,7 +284,10 @@ const CITY = {
   ],
   boosts: [{ at: 1.2, d: -3 }, { at: 9.2, d: 0 }, { at: 19.6, d: 3 }],
   ramps: [],
-  checkpoints: [2.6, 6.2, 9.8, 13.2, 16.4, 19.0],
+  // arches, their flags and the traffic lights before them stand clear of the roadside buildings
+  // (was 6.2, 9.8, 16.4: arch legs inside buildings; 19.0: leg through a corner sign post).
+  // Checked by tools/checkpoint-audit.mjs
+  checkpoints: [2.6, 6.01, 10.13, 13.2, 16.13, 18.98],
   env: {
     theme: 'city',
     gorge: { depth: 12, upper: 12, waterfallAlong: -1e9, river: true },
